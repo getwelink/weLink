@@ -1,0 +1,13 @@
+[project]
+name = "welink"
+version = "1.0.0"
+description = "WeLink 客户端：把微信的能力当 HTTP 接口用"
+requires-python = ">=3.8"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["welink"]
