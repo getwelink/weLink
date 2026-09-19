@@ -1,0 +1,12 @@
+.DS_Store
+Thumbs.db
+
+# 编译产物
+out/
+*.class
+__pycache__/
+*.pyc
+node_modules/
+
+# 别把自己的 Key 传上来
+.env
