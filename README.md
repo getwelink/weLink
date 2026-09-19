@@ -8,7 +8,7 @@
 
 89 个接口 · 16 种事件 · Python / Node.js / Go / Java 客户端
 
-<sub>微信机器人 · 微信 API · 微信个人号开发 · 微信自动回复 · 微信消息推送 · 微信群管理 · 朋友圈自动化</sub>
+<sub>微信机器人 · 微信 API · 微信 SDK · 微信协议 · 微信个人号开发 · 微信自动回复 · 微信消息推送 · 微信群管理 · 朋友圈自动化</sub>
 
 <sub><i>WeChat personal account HTTP API — bot, automation, message webhook, contacts, group and moments, with Python / Node.js / Go / Java SDKs.</i></sub>
 
@@ -27,7 +27,7 @@
 - [这是什么](#这是什么)
 - [能做什么](#能做什么)
 - [五分钟上手](#五分钟上手)
-- [四种语言的客户端](#四种语言的客户端)
+- [四种语言的微信 SDK](#四种语言的微信-sdk)
 - [照着学的路径](#照着学的路径)
 - [一次调用长什么样](#一次调用长什么样)
 - [怎么获取](#怎么获取)
@@ -129,7 +129,7 @@ python examples/python/1_quickstart.py
 
 ---
 
-## 四种语言的客户端
+## 四种语言的微信 SDK
 
 都是**零依赖**，从接口清单生成，和服务端同源，不会对不上。
 
@@ -289,6 +289,9 @@ Content-Type: application/json
 ---
 
 ## 常见问题
+
+**要自己研究微信协议吗？**
+不用。协议那层在服务端做掉了，你这边只有 HTTP 和 JSON，四种语言的微信 SDK 直接调。
 
 **和 itchat、wechaty 这类有什么不一样？**
 那些是在你自己机器上跑一个客户端，得一直开着；这个是服务端托管的，你的程序只发
