@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- WeLink. A chain link cut down the middle and joined back together.
+     Sized for an avatar: everything stays inside the circle a chat app
+     will crop it to, so nothing is lost when the corners go. -->
+  <rect width="64" height="64" rx="14" fill="#1b1917"/>
+  <g fill="none" stroke-width="6.8" stroke-linecap="round"><path d="M28 21H19a11 11 0 0 0 0 22h9" stroke="#fdfcfa"/><path d="M25 32h7" stroke="#fdfcfa"/><path d="M36 21h9a11 11 0 0 1 0 22h-9" stroke="#f97316"/><path d="M32 32h7" stroke="#f97316"/></g>
+</svg>
