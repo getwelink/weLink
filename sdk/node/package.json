@@ -1,0 +1,11 @@
+{
+  "name": "welink",
+  "version": "1.0.0",
+  "description": "WeLink 客户端：把微信的能力当 HTTP 接口用",
+  "type": "module",
+  "main": "welink.js",
+  "exports": "./welink.js",
+  "engines": { "node": ">=18" },
+  "files": ["welink.js", "README.md"],
+  "license": "MIT"
+}
