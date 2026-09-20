@@ -3,7 +3,7 @@
 微信个人号的 HTTP 接口：收发消息、通讯录、群、朋友圈、事件回调。
 下面每一个接口，四种语言的微信 SDK 里都有对应的方法；微信协议那层不用你碰。
 
-共 89 个接口，按用途分成 7 组。
+共 90 个接口，按用途分成 7 组。
 
 所有请求都带 `Authorization: Bearer <你的 Key>`，路径前缀 `/v1`。
 响应统一是 `{ "code": 0, "message": "ok", "data": ..., "request_id": "..." }`，
@@ -20,7 +20,7 @@
 - [联系人](#联系人)（16）
 - [群](#群)（18）
 - [消息](#消息)（16）
-- [媒体](#媒体)（4）
+- [媒体](#媒体)（5）
 - [朋友圈](#朋友圈)（13）
 - [平台](#平台)（3）
 
@@ -1814,6 +1814,32 @@ await wx.favorite.delete('acc_xxx', '...')
 
 
 ## 媒体
+
+### 上传文件
+
+```
+POST /v1/accounts/{account_id}/media/upload
+```
+
+把文件直接传上来，换一个 media_id，之后发图片、视频、语音、文件都可以只给这个 ID。适合文件在你自己机器上、没有公网地址可给的情况 —— 比如程序刚生成的一张图。用 multipart/form-data 提交，文件放在 file 字段里，最大 20 MB。第一次发送时这个文件才真正上传到微信，之后再用同一个 ID 发就不再重传了。没有发送过的上传保留 24 小时。
+
+| 参数 | 位置 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
+| `file` | 请求体 | file | 是 | 要上传的文件，multipart/form-data |
+| `kind` | 请求体 | string | 否 | 这个文件打算当什么发，不填按类型自动判断，可选值：`image` / `video` / `voice` / `file` |
+
+<details><summary>各语言怎么调</summary>
+
+```python
+wx.media_upload("acc_xxx", file="...")
+```
+
+```javascript
+await wx.media.upload('acc_xxx', { file: '...' })
+```
+
+</details>
 
 ### 下载消息附件
 
