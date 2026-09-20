@@ -52,6 +52,56 @@ export class WeLink {
     build(this)
   }
 
+  /**
+   * 以 multipart/form-data 上传一个文件。
+   *
+   * file 可以是 Buffer、Uint8Array、Blob，或者一个本地路径（字符串）。
+   */
+  async upload(path, file, { filename, contentType, fields } = {}) {
+    let data = file
+    if (typeof file === 'string') {
+      const { readFile } = await import('node:fs/promises')
+      const { basename } = await import('node:path')
+      data = await readFile(file)
+      filename = filename || basename(file)
+    }
+    const form = new FormData()
+    for (const [k, v] of Object.entries(fields || {})) {
+      if (v === undefined || v === null || v === '') continue
+      form.append(k, String(v))
+    }
+    const blob = data instanceof Blob
+      ? data
+      : new Blob([data], { type: contentType || 'application/octet-stream' })
+    form.append('file', blob, filename || 'file')
+
+    const stop = AbortSignal.timeout(this.timeout)
+    let res
+    try {
+      // No Content-Type here on purpose: fetch sets it with the boundary.
+      res = await fetch(this.baseUrl + '/v1' + path, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + this.apiKey, Accept: 'application/json' },
+        body: form,
+        signal: stop,
+      })
+    } catch (err) {
+      throw new WeLinkError(0, `连不上服务：${err.message}`)
+    }
+    const text = await res.text()
+    let envelope
+    try {
+      envelope = JSON.parse(text)
+    } catch {
+      throw new WeLinkError(0, `服务返回的不是 JSON（HTTP ${res.status}）`, '', res.status)
+    }
+    if (envelope.code !== 0) {
+      throw new WeLinkError(envelope.code || 0, envelope.message || '上传失败',
+        envelope.request_id || '', res.status)
+    }
+    return envelope.data
+  }
+
   /** 直接调用一个接口。清单里还没有的新接口可以用它。 */
   async call(method, path, { query, body } = {}) {
     let url = this.baseUrl + '/v1' + path
@@ -923,6 +973,20 @@ function build(self) {
   }
 
   self.media = {
+    /**
+     * 上传文件 —— 把文件直接传上来，换一个 media_id，之后发图片、视频、语音、文件都可以只给这个 ID。适合文件在你自己机器上、没有公网地址可给的情况 —— 比如程序刚生成的一张图。用 multipart/form-data 提交，文件放在 file 字段里，最大 20 MB。第一次发送时这个文件才真正上传到微信，之后再用同一个 ID 发就不再重传了。没有发送过的上传保留 24 小时。
+     *
+     * POST /v1/accounts/{account_id}/media/upload
+     * @param {string} accountId 实例 ID，形如 acc_xxx
+     * @param {object} opts
+     * @param {any} [opts.file] 必填 要上传的文件，multipart/form-data
+     * @param {string} [opts.kind] 这个文件打算当什么发，不填按类型自动判断（image / video / voice / file）
+     */
+    upload(accountId, opts = {}) {
+      const { file, filename, contentType } = opts
+      return self.upload(`/accounts/${encodeURIComponent(accountId)}/media/upload`, file, {
+        filename, contentType, fields: pick(opts, ['kind']) })
+    },
     /**
      * 下载消息附件 —— 取一条消息里的图片、视频、文件或语音，返回一个限时下载地址。
      *
