@@ -25,7 +25,7 @@ except WeLinkError as e:
     print(e.code, e.message, e.request_id)
 ```
 
-89 个接口对应 89 个方法，名字就是接口 ID 把点换成下划线：
+90 个接口对应 90 个方法，名字就是接口 ID 把点换成下划线：
 `message.text` → `message_text`，`moment.post_images` → `moment_post_images`。
 
 清单里还没有的新接口，用底层的 `call`：
