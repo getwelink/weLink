@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -70,6 +71,80 @@ func New(apiKey, baseURL string) *Client {
 }
 
 // Call 直接调用一个接口。清单里还没有的新接口可以用它。
+// Upload 以 multipart/form-data 上传一个文件。
+//
+// name 是文件名，会影响对端认出来的类型；fields 是同时要带的普通表单字段。
+func (c *Client) Upload(ctx context.Context, path, name string, content []byte, fields M) (json.RawMessage, error) {
+	if c.APIKey == "" {
+		return nil, &Error{Message: "api key 不能为空"}
+	}
+	if len(content) == 0 {
+		return nil, &Error{Message: "文件是空的"}
+	}
+	if name == "" {
+		name = "file"
+	}
+
+	var buf bytes.Buffer
+	form := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if v == nil || v == "" {
+			continue
+		}
+		if err := form.WriteField(k, fmt.Sprint(v)); err != nil {
+			return nil, &Error{Message: err.Error()}
+		}
+	}
+	part, err := form.CreateFormFile("file", name)
+	if err != nil {
+		return nil, &Error{Message: err.Error()}
+	}
+	if _, err := part.Write(content); err != nil {
+		return nil, &Error{Message: err.Error()}
+	}
+	if err := form.Close(); err != nil {
+		return nil, &Error{Message: err.Error()}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/v1"+path, &buf)
+	if err != nil {
+		return nil, &Error{Message: err.Error()}
+	}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", form.FormDataContentType())
+
+	client := c.HTTP
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, &Error{Message: "连不上服务：" + err.Error()}
+	}
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, &Error{Message: "读响应失败：" + err.Error(), Status: resp.StatusCode}
+	}
+	var envelope struct {
+		Code      int             `json:"code"`
+		Message   string          `json:"message"`
+		Data      json.RawMessage `json:"data"`
+		RequestID string          `json:"request_id"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return nil, &Error{Message: fmt.Sprintf("服务返回的不是 JSON（HTTP %d）", resp.StatusCode),
+			Status: resp.StatusCode}
+	}
+	if envelope.Code != 0 {
+		return nil, &Error{Code: envelope.Code, Message: envelope.Message,
+			RequestID: envelope.RequestID, Status: resp.StatusCode}
+	}
+	return envelope.Data, nil
+}
+
 func (c *Client) Call(ctx context.Context, method, path string, query, body M) (json.RawMessage, error) {
 	if c.APIKey == "" {
 		return nil, &Error{Message: "api key 不能为空"}
@@ -886,6 +961,20 @@ func (c *Client) FavoriteDelete(ctx context.Context, accountId string, favId str
 }
 
 // --- 媒体 ---
+
+// MediaUpload 把文件直接传上来，换一个 media_id，之后发图片、视频、语音、文件都可以只给这个 ID。适合文件在你自己机器上、没有公网地址可给的情况 —— 比如程序刚生成的一张图。用 multipart/form-data 提交，文件放在 file 字段里，最大 20 MB。第一次发送时这个文件才真正上传到微信，之后再用同一个 ID 发就不再重传了。没有发送过的上传保留 24 小时。
+//
+// POST /v1/accounts/{account_id}/media/upload
+//
+// args 里可以放：
+//
+//	file             必填  要上传的文件，multipart/form-data
+//	kind             可选  这个文件打算当什么发，不填按类型自动判断（image / video / voice / file）
+func (c *Client) MediaUpload(ctx context.Context, accountId string, args M) (json.RawMessage, error) {
+	content, _ := args["file"].([]byte)
+	name, _ := args["filename"].(string)
+	return c.Upload(ctx, "/accounts/"+url.PathEscape(accountId)+"/media/upload", name, content, take(args, "kind"))
+}
 
 // MediaFromMessage 取一条消息里的图片、视频、文件或语音，返回一个限时下载地址。
 //
