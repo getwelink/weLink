@@ -13,6 +13,9 @@
 from __future__ import annotations
 
 import json as _json
+import uuid as _uuid
+import os as _os
+import mimetypes as _mimetypes
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -100,6 +103,70 @@ class WeLink:
         code = envelope.get("code")
         if code != 0:
             raise WeLinkError(code or 0, envelope.get("message") or "调用失败",
+                              envelope.get("request_id") or "", status)
+        return envelope.get("data")
+
+    def upload(self, path: str, file: Any, *, filename: str = "",
+               content_type: str = "", fields: Optional[dict] = None) -> Any:
+        """以 multipart/form-data 上传一个文件。
+
+        file 可以是一个路径（str）、二进制内容（bytes），或者任何有 read() 的对象。
+        """
+        if isinstance(file, str):
+            filename = filename or _os.path.basename(file)
+            with open(file, "rb") as fh:
+                content = fh.read()
+        elif isinstance(file, (bytes, bytearray)):
+            content = bytes(file)
+        elif hasattr(file, "read"):
+            content = file.read()
+            filename = filename or getattr(file, "name", "")
+        else:
+            raise ValueError("file 只能是路径、bytes，或者有 read() 的对象")
+
+        filename = _os.path.basename(filename) or "file"
+        content_type = content_type or (
+            _mimetypes.guess_type(filename)[0] or "application/octet-stream")
+
+        boundary = "----welink" + _uuid.uuid4().hex
+        crlf = b"\r\n"
+        chunks = []
+        for key, value in (fields or {}).items():
+            if value is None or value == "":
+                continue
+            chunks.append(b"--" + boundary.encode() + crlf)
+            chunks.append(('Content-Disposition: form-data; name="%s"' % key
+                           ).encode() + crlf + crlf)
+            chunks.append(str(value).encode("utf-8") + crlf)
+        chunks.append(b"--" + boundary.encode() + crlf)
+        chunks.append((
+            'Content-Disposition: form-data; name="file"; filename="%s"'
+            % filename).encode("utf-8") + crlf)
+        chunks.append(("Content-Type: %s" % content_type).encode() + crlf + crlf)
+        chunks.append(content + crlf)
+        chunks.append(b"--" + boundary.encode() + b"--" + crlf)
+        data = b"".join(chunks)
+
+        req = urllib.request.Request(
+            self.base_url + "/v1" + path, data=data, method="POST",
+            headers={"Authorization": "Bearer " + self.api_key,
+                     "Accept": "application/json",
+                     "Content-Type": "multipart/form-data; boundary=" + boundary})
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                raw, status = resp.read(), resp.status
+        except urllib.error.HTTPError as e:
+            raw, status = e.read(), e.code
+        except urllib.error.URLError as e:
+            raise WeLinkError(0, "连不上服务：%s" % e.reason) from e
+
+        try:
+            envelope = _json.loads(raw.decode("utf-8"))
+        except ValueError:
+            raise WeLinkError(0, "服务返回的不是 JSON（HTTP %s）" % status, status=status)
+        code = envelope.get("code")
+        if code != 0:
+            raise WeLinkError(code or 0, envelope.get("message") or "上传失败",
                               envelope.get("request_id") or "", status)
         return envelope.get("data")
 
@@ -1022,6 +1089,22 @@ class WeLink:
 
 
     # --- 媒体 ----------------------------------------------------------------
+
+    def media_upload(self, account_id: str, *, file: Any, kind: Optional[str] = None, filename: str = "", content_type: str = "") -> Any:
+        """上传文件
+
+        把文件直接传上来，换一个 media_id，之后发图片、视频、语音、文件都可以只给这个 ID。适合文件在你自己机器上、没有公网地址可给的情况 —— 比如程序刚生成的一张图。用 multipart/form-data 提交，文件放在 file 字段里，最大 20 MB。第一次发送时这个文件才真正上传到微信，之后再用同一个 ID 发就不再重传了。没有发送过的上传保留 24 小时。
+
+        POST /v1/accounts/{account_id}/media/upload
+
+        参数：
+          file             必填  要上传的文件，multipart/form-data
+          kind             可选  这个文件打算当什么发，不填按类型自动判断（image / video / voice / file）
+        """
+        return self.upload(f"/accounts/{account_id}/media/upload", file,
+            filename=filename, content_type=content_type,
+            fields={"kind": kind},
+        )
 
     def media_from_message(self, account_id: str, *, message_id: str) -> Any:
         """下载消息附件
