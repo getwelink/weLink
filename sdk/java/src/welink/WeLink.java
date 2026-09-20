@@ -172,6 +172,85 @@ public class WeLink {
         return envelope.get("data");
     }
 
+    /**
+     * 以 multipart/form-data 上传一个文件。
+     *
+     * <p>JDK 自己不带 multipart，所以这里手工拼；好处是这个 SDK 依然只依赖 JDK。
+     *
+     * @param path    接口路径，例如 /accounts/acc_xxx/media/upload
+     * @param name    文件名，影响对端认出来的类型
+     * @param content 文件内容
+     * @param fields  同时要带的普通表单字段，可以为 null
+     */
+    public Object upload(String path, String name, byte[] content, Map<String, Object> fields) {
+        if (content == null || content.length == 0) {
+            throw new WeLinkException(0, "文件是空的", "", 0);
+        }
+        String filename = (name == null || name.isEmpty()) ? "file" : name;
+        String boundary = "----welink" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String crlf = "\r\n";
+
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        try {
+            if (fields != null) {
+                for (Map.Entry<String, Object> entry : fields.entrySet()) {
+                    Object value = entry.getValue();
+                    if (value == null || String.valueOf(value).isEmpty()) {
+                        continue;
+                    }
+                    buf.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+                    buf.write(("Content-Disposition: form-data; name=\"" + entry.getKey()
+                            + "\"" + crlf + crlf).getBytes(StandardCharsets.UTF_8));
+                    buf.write((String.valueOf(value) + crlf).getBytes(StandardCharsets.UTF_8));
+                }
+            }
+            buf.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+            buf.write(("Content-Disposition: form-data; name=\"file\"; filename=\""
+                    + filename + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+            buf.write(("Content-Type: application/octet-stream" + crlf + crlf)
+                    .getBytes(StandardCharsets.UTF_8));
+            buf.write(content);
+            buf.write(crlf.getBytes(StandardCharsets.UTF_8));
+            buf.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new WeLinkException(0, "拼装上传内容失败：" + e.getMessage(), "", 0);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1" + path))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Accept", "application/json")
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(buf.toByteArray()))
+                .build();
+
+        HttpResponse<String> response;
+        try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (IOException | InterruptedException e) {
+            throw new WeLinkException(0, "连不上服务：" + e.getMessage(), "", 0);
+        }
+
+        Object parsed;
+        try {
+            parsed = Json.read(response.body());
+        } catch (RuntimeException e) {
+            throw new WeLinkException(0, "服务返回的不是 JSON（HTTP " + response.statusCode() + "）",
+                    "", response.statusCode());
+        }
+        if (!(parsed instanceof Map)) {
+            throw new WeLinkException(0, "服务返回的不是预期的结构", "", response.statusCode());
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> envelope = (Map<String, Object>) parsed;
+        int code = envelope.get("code") instanceof BigDecimal
+                ? ((BigDecimal) envelope.get("code")).intValue() : 0;
+        if (code != 0) {
+            throw new WeLinkException(code, String.valueOf(envelope.get("message")),
+                    String.valueOf(envelope.getOrDefault("request_id", "")), response.statusCode());
+        }
+        return envelope.get("data");
+    }
+
     /** 从参数里挑出这个接口认识的那几个，其余忽略。 */
     private static Map<String, Object> take(Map<String, Object> args, String... keys) {
         if (args == null) {
@@ -990,6 +1069,22 @@ public class WeLink {
 
 
     // --- 媒体 ---
+
+    /**
+     * 上传文件 —— 把文件直接传上来，换一个 media_id，之后发图片、视频、语音、文件都可以只给这个 ID。适合文件在你自己机器上、没有公网地址可给的情况 —— 比如程序刚生成的一张图。用 multipart/form-data 提交，文件放在 file 字段里，最大 20 MB。第一次发送时这个文件才真正上传到微信，之后再用同一个 ID 发就不再重传了。没有发送过的上传保留 24 小时。
+     * <p>POST /v1/accounts/{account_id}/media/upload
+     * <p>args 里可以放：
+     * <ul>
+     * <li>file —— 必填 要上传的文件，multipart/form-data</li>
+     * <li>kind —— 可选 这个文件打算当什么发，不填按类型自动判断（image / video / voice / file）</li>
+     * </ul>
+     */
+    public Object mediaUpload(String accountId, Map<String, Object> args) {
+        byte[] content = (byte[]) args.get("file");
+        Object named = args.get("filename");
+        return upload("/accounts/" + accountId + "/media/upload", named == null ? null : String.valueOf(named),
+                content, take(args, "kind"));
+    }
 
     /**
      * 下载消息附件 —— 取一条消息里的图片、视频、文件或语音，返回一个限时下载地址。
