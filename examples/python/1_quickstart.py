@@ -17,9 +17,9 @@ wx = WeLink(
 )
 
 # 1. 开一个实例。已经有了就跳过这步，直接用它的 account_id。
-#    proxy 必填：area: 后面跟省份代码，平台会分一个那个省的代理给你，440000 是广东。
-#    离你常用手机所在的省越近越好。
-account = wx.account_create(proxy="area:440000", name="我的第一个实例")
+#    proxy 必填，不能直连：socks5 代理地址（socks5://user:pass@host:port），或者网络助手的网络ID。
+#    这里从环境变量 WELINK_PROXY 读。
+account = wx.account_create(proxy=os.environ["WELINK_PROXY"], name="我的第一个实例")
 account_id = account["account_id"]
 print("实例已创建：", account_id)
 

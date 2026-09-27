@@ -273,7 +273,7 @@ public class WeLink {
      * <p>POST /v1/accounts
      * <p>args 里可以放：
      * <ul>
-     * <li>proxy —— 必填 出口网络，必填，不能直连。三种填法：地区代理（area:440000 这样的省份代码，由平台从代理池里分配，你不用准备任何东西）、socks5 代理地址（socks5://user:pass@host:port）、或者…</li>
+     * <li>proxy —— 必填 出口网络，必填，不能直连。两种填法：socks5 代理地址（socks5://user:pass@host:port），或者网络助手的网络ID（把网络助手装到一台手机上，打开即可看到，这台手机的网络就是这个实例的出口）…</li>
      * <li>keep_history —— 可选 是否保存收发消息和推送记录，默认 true。设为 false 时消息不写入数据库、推送记录投递完即删；图片等文件照常可下载，撤回照常可用，但查不到历史消息，文字和卡片消息也无法转发</li>
      * <li>name —— 可选 备注名称，只给自己看</li>
      * <li>platform —— 可选 登录方式，留空用默认的。不是每个部署两种都开通，没开通的会直接报错并列出能选的（ipad / mac）</li>
@@ -305,7 +305,7 @@ public class WeLink {
      * <p>POST /v1/accounts/{account_id}/login/qrcode
      * <p>args 里可以放：
      * <ul>
-     * <li>proxy —— 可选 改用这个出口网络：地区代理、socks5 地址或网络助手的网络ID；不传则沿用实例现有的。不能传空串——实例必须有出口，直连是不允许的</li>
+     * <li>proxy —— 可选 改用这个出口网络：socks5 地址或网络助手的网络ID；不传则沿用实例现有的。不能传空串——实例必须有出口，直连是不允许的</li>
      * </ul>
      */
     public Object accountQrcode(String accountId, Map<String, Object> args) {

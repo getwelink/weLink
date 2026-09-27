@@ -1,7 +1,7 @@
 /**
  * 从零到发出第一条消息。
  *
- *   WELINK_API_KEY=key_xxx WELINK_BASE_URL=https://你的地址 node 1-quickstart.mjs
+ *   WELINK_API_KEY=key_xxx WELINK_BASE_URL=https://你的地址 WELINK_PROXY=socks5://… node 1-quickstart.mjs
  *
  * SDK 只用 Node 内置的 fetch，需要 Node 18 以上。
  */
@@ -13,9 +13,10 @@ const wx = new WeLink({
 })
 
 // 1. 开一个实例。已经有了就跳过这步，直接用它的 account_id。
-//    proxy 必填：area: 后面跟省份代码，平台会分一个那个省的代理给你，440000 是广东。
-//    离你常用手机所在的省越近越好。
-const account = await wx.account.create({ proxy: 'area:440000', name: '我的第一个实例' })
+//    proxy 必填，不能直连：socks5 代理地址（socks5://user:pass@host:port），或者网络助手的网络ID。
+//    这里从环境变量 WELINK_PROXY 读。
+if (!process.env.WELINK_PROXY) throw new Error('先设置环境变量 WELINK_PROXY')
+const account = await wx.account.create({ proxy: process.env.WELINK_PROXY, name: '我的第一个实例' })
 const accountId = account.account_id
 console.log('实例已创建：', accountId)
 
