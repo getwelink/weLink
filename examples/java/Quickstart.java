@@ -8,7 +8,7 @@ import welink.WeLink;
  *
  * <pre>
  * javac -encoding UTF-8 -d out ../../sdk/java/src/welink/WeLink.java Quickstart.java
- * java -cp out Quickstart
+ * WELINK_API_KEY=key_xxx WELINK_BASE_URL=https://你的地址 WELINK_PROXY=socks5://… java -cp out Quickstart
  * </pre>
  *
  * 返回值是 Map / List / String / BigDecimal / Boolean / null，
@@ -20,10 +20,15 @@ public class Quickstart {
         WeLink wx = new WeLink(System.getenv("WELINK_API_KEY"), System.getenv("WELINK_BASE_URL"));
 
         // 1. 开一个实例。已经有了就跳过这步，直接用它的 account_id。
-        //    proxy 必填：area: 后面跟省份代码，平台会分一个那个省的代理给你，440000 是广东。
-        //    离你常用手机所在的省越近越好。
+        //    proxy 必填，不能直连：socks5 代理地址（socks5://user:pass@host:port），或者网络助手的网络ID。
+        //    这里从环境变量 WELINK_PROXY 读。
+        String proxy = System.getenv("WELINK_PROXY");
+        if (proxy == null || proxy.isEmpty()) {
+            System.err.println("先设置环境变量 WELINK_PROXY");
+            return;
+        }
         Map<?, ?> account = (Map<?, ?>) wx.accountCreate(
-                Map.of("proxy", "area:440000", "name", "我的第一个实例"));
+                Map.of("proxy", proxy, "name", "我的第一个实例"));
         String accountId = String.valueOf(account.get("account_id"));
         System.out.println("实例已创建：" + accountId);
 
