@@ -340,8 +340,8 @@ AI、公司内部要个工具，一两句话说清楚就行，不用写方案，
 - 控制台右下角多了个**在线客服**，有问题可以直接在那儿问。
 - **轮询事件不会再一遍遍拿到同一批了。** 以前一页没取满就不给 `next_cursor`，照着示例轮询的程序
   会一直从原地重读，AstrBot 那边的表现就是发一条 `/help`，机器人每 3 秒回一遍。现在只要这页有事件就给游标，
-  另外多了个 `has_more`。[AstrBot 插件](https://github.com/getwelink/astrbot_plugin_welink)也发了 0.1.1，
-  处理过的消息会记住，不会再回第二次。
+  另外多了个 `has_more`。[AstrBot 插件](https://github.com/getwelink/astrbot_plugin_welink)也发了 0.1.2：
+  处理过的消息会记住，不会再回第二次；也不会再去回微信团队、公众号的自动回复，免得两边互相回个没完。
 
 ---
 
