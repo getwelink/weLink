@@ -3,7 +3,7 @@
 微信个人号的 HTTP 接口：收发消息、通讯录、群、朋友圈、事件回调。
 下面每一个接口，四种语言的微信 SDK 里都有对应的方法；微信协议那层不用你碰。
 
-共 90 个接口，按用途分成 7 组。
+共 88 个接口，按用途分成 7 组。
 
 所有请求都带 `Authorization: Bearer <你的 Key>`，路径前缀 `/v1`。
 响应统一是 `{ "code": 0, "message": "ok", "data": ..., "request_id": "..." }`，
@@ -14,9 +14,14 @@
 > 想动手跑一遍，还需要一个服务地址和一个授权码 —— 现在是免费的，
 > 回 [首页](../README.md#怎么用起来免费)加我微信说一句用途就行。
 
+有些接口的说明旁边多一句提醒，两种：
+
+- **注意（易封号）**：调用不当容易被微信限制甚至封号，比如加好友、通过好友申请。照着提醒控制频率。
+- **建议缓存**：每调一次都是现去微信取，平台这边不留副本，而答案又很少变——通讯录、群成员、个人资料这类。取一次存到你自己那边，收到对应事件再更新；别每来一条消息就调一次，慢，也容易被当成脚本。
+
 ## 目录
 
-- [实例](#实例)（19）
+- [实例](#实例)（17）
 - [联系人](#联系人)（16）
 - [群](#群)（18）
 - [消息](#消息)（16）
@@ -37,19 +42,20 @@ POST /v1/accounts
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
-| `platform` | 请求体 | string | 是 | 登录方式，可选值：`ipad` / `mac` |
+| `platform` | 请求体 | string | 否 | 登录方式，留空用默认的。不是每个部署两种都开通，没开通的会直接报错并列出能选的，可选值：`ipad` / `mac` |
 | `name` | 请求体 | string | 否 | 备注名称，只给自己看 |
-| `proxy` | 请求体 | string | 否 | 代理网络，留空则直连。两种填法：socks5 代理地址（socks5://user:pass@host:port），或者网络助手的网络ID（把网络助手装到一台手机上，打开即可看到，这台手机的网络就是这个实例的出口）—— 填网络ID时地址由平台代取，网络助手离线会被拒绝，凭据轮换后重连前会自动重取 |
+| `proxy` | 请求体 | string | 是 | 出口网络，必填，不能直连。三种填法：地区代理（area:440000 这样的省份代码，由平台从代理池里分配，你不用准备任何东西）、socks5 代理地址（socks5://user:pass@host:port）、或者网络助手的网络ID（把网络助手装到一台手机上，打开即可看到，这台手机的网络就是这个实例的出口）—— 填网络ID时地址由平台代取，网络助手离线会被拒绝，凭据轮换后重连前会自动重取 |
 | `webhook_url` | 请求体 | string | 否 | 该实例的事件推送地址 |
+| `keep_history` | 请求体 | boolean | 否 | 是否保存收发消息和推送记录，默认 true。设为 false 时消息不写入数据库、推送记录投递完即删；图片等文件照常可下载，撤回照常可用，但查不到历史消息，文字和卡片消息也无法转发 |
 
 <details><summary>各语言怎么调</summary>
 
 ```python
-wx.account_create(platform="ipad")
+wx.account_create(proxy="area:440000")
 ```
 
 ```javascript
-await wx.account.create({ platform: 'ipad' })
+await wx.account.create({ proxy: 'area:440000' })
 ```
 
 </details>
@@ -109,7 +115,7 @@ POST /v1/accounts/{account_id}/login/qrcode
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `proxy` | 请求体 | string | 否 | 改用这个代理网络：socks5 代理地址或网络助手的网络ID；传空串改为直连，不传则不动 |
+| `proxy` | 请求体 | string | 否 | 改用这个出口网络：地区代理、socks5 地址或网络助手的网络ID；不传则沿用实例现有的。不能传空串——实例必须有出口，直连是不允许的 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -129,7 +135,7 @@ await wx.account.qrcode('acc_xxx')
 GET /v1/accounts/{account_id}/login/status
 ```
 
-轮询扫码进度：waiting（等待扫码）、scanned（已扫码待确认）、online（已上线）、cancelled、expired。等待扫码时还带 expires_in，是这张码此刻还剩多少秒，用它校准倒计时。
+轮询扫码进度：waiting（等待扫码）、scanned（已扫码待确认）、verify（等待验证）、online（已上线）、cancelled、expired。等待扫码时还带 expires_in，是这张码此刻还剩多少秒，用它校准倒计时。带 notice 的时候把它原样显示给用户：Mac 端扫码后要过一次新设备验证，平台会自动完成，这期间状态一直停在 scanned，别让用户以为卡住了去取消登录。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -143,55 +149,6 @@ wx.account_login_status("acc_xxx")
 
 ```javascript
 await wx.account.loginStatus('acc_xxx')
-```
-
-</details>
-
-### 取消扫码
-
-```
-POST /v1/accounts/{account_id}/login/cancel
-```
-
-放弃这次扫码。已经发出去的码会连同它背后的会话一起作废，扫了也不会让这个实例上线；实例回到未登录，重新取码即可。关闭扫码页面时调用它，别把一张还能用的码留在外面。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-
-<details><summary>各语言怎么调</summary>
-
-```python
-wx.account_login_cancel("acc_xxx")
-```
-
-```javascript
-await wx.account.loginCancel('acc_xxx')
-```
-
-</details>
-
-### 提交安全验证
-
-```
-POST /v1/accounts/{account_id}/login/captcha
-```
-
-登录过程中出现安全验证时，把验证结果提交回来。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `fields` | 请求体 | object | 是 | 验证所需的字段，按提示填写 |
-
-<details><summary>各语言怎么调</summary>
-
-```python
-wx.account_captcha("acc_xxx", fields={})
-```
-
-```javascript
-await wx.account.captcha('acc_xxx', { fields: {} })
 ```
 
 </details>
@@ -250,7 +207,7 @@ await wx.account.logout('acc_xxx')
 DELETE /v1/accounts/{account_id}
 ```
 
-删除槽位并归还额度。历史消息不会立刻清除。
+删除槽位并归还额度。历史消息不会立刻清除。在线的实例不能直接删除，请先调用退出登录——否则微信那边的会话还开着，而这边已经没有东西能再去关掉它。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -275,6 +232,8 @@ GET /v1/accounts/{account_id}/profile
 ```
 
 读这个实例自己的昵称、头像、地区等资料。
+
+> **建议缓存**：资料很少变，登录成功后取一次存起来就行。平时要用 wxid、昵称、头像，读「实例详情」里的 profile——那条读的是平台存好的，不去微信。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -322,31 +281,6 @@ await wx.account.updateProfile('acc_xxx')
 
 </details>
 
-### 设置微信号
-
-```
-PUT /v1/accounts/{account_id}/profile/alias
-```
-
-设置可被搜索的微信号。微信只允许设置一次，之后会拒绝。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `alias` | 请求体 | string | 是 | 要设置的微信号 |
-
-<details><summary>各语言怎么调</summary>
-
-```python
-wx.account_set_alias("acc_xxx", alias="my_wx_id")
-```
-
-```javascript
-await wx.account.setAlias('acc_xxx', { alias: 'my_wx_id' })
-```
-
-</details>
-
 ### 修改头像
 
 ```
@@ -379,6 +313,8 @@ GET /v1/accounts/{account_id}/profile/qrcode
 ```
 
 取这个实例自己的名片二维码，返回 data URL，可直接放进 img。
+
+> **建议缓存**：名片二维码基本不会变，取一次存成图片反复用，不要每次展示都来取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -471,6 +407,31 @@ await wx.account.deviceSignout('acc_xxx', '...')
 
 </details>
 
+### 消息保存设置
+
+```
+PUT /v1/accounts/{account_id}/history
+```
+
+设置这个实例是否保存收发消息和推送记录。关闭后：新收发的消息不写入数据库，Webhook 推送记录在投递成功或放弃后立即删除；图片、语音、视频、文件照常可以下载，自己发的消息照常可以撤回，重复推送照常去重；但查不到历史消息，文字和卡片消息也无法转发。事件照常保存。关闭前已经保存的消息不会立刻删除，按原来的保存期自动清理。
+
+| 参数 | 位置 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- | --- |
+| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
+| `keep` | 请求体 | boolean | 是 | true 保存，false 不保存 |
+
+<details><summary>各语言怎么调</summary>
+
+```python
+wx.account_history("acc_xxx", keep=false)
+```
+
+```javascript
+await wx.account.history('acc_xxx', { keep: false })
+```
+
+</details>
+
 ### 设置 Webhook
 
 ```
@@ -501,13 +462,15 @@ await wx.account.webhook('acc_xxx', { url: 'https://example.com/wechat/hook' })
 
 ## 联系人
 
-### 通讯录标识
+### 通讯录列表
 
 ```
 GET /v1/accounts/{account_id}/contacts
 ```
 
 列出通讯录里都有谁，只给标识：好友的 wxid、群的 @chatroom、公众号的 gh_ 开头，一个不筛。要资料再用「联系人详情」按需取——一千个人里你可能只关心十个。直接向微信取，实例要在线；一页多大由微信定，翻页把 next_cursor 原样带回来，为空表示到底。
+
+> **建议缓存**：登录成功后拉一次全量存到你自己那边，之后照事件更新：friend.added 新增好友，contact.updated 资料变了，contact.deleted 被删。不要定时整份重拉——每次都是去微信拉全量，人多时又慢又重，频繁拉取还会增加被风控的概率。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -534,6 +497,8 @@ POST /v1/accounts/{account_id}/contacts/batch
 
 按 wxid 批量取联系人资料。与「联系人详情」走的是微信的两条不同路径，字段相同，这条更适合一次问很多人。
 
+> **建议缓存**：资料按 wxid 存起来，收到 contact.updated 再更新那一个人。不要每来一条消息就查一次发送人的资料。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -557,7 +522,9 @@ await wx.contact.batch('acc_xxx', { wxids: ['wxid_example'] })
 POST /v1/accounts/{account_id}/contacts/detail
 ```
 
-读联系人的完整资料：昵称、备注、微信号、头像、性别、地区、签名。
+读联系人的完整资料：昵称、备注、微信号、头像、性别、地区、签名，以及他带的标签（label_ids，对应标签列表里的 ID；没有标签时不返回这个字段）。
+
+> **建议缓存**：资料按 wxid 存起来，收到 contact.updated 再更新那一个人。不要每来一条消息就查一次发送人的资料。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -584,6 +551,8 @@ POST /v1/accounts/{account_id}/contacts/check
 
 查这些人是否还是好友。注意：微信对这个操作盯得很紧，查得多或查得频繁会导致实例被限制，一次最多 20 个，请按需使用。
 
+> **建议缓存**：查过的结果存下来，同一个人短时间内不要重复查。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -607,7 +576,7 @@ await wx.contact.check('acc_xxx', { wxids: ['wxid_a'] })
 GET /v1/accounts/{account_id}/contacts/external
 ```
 
-读企业微信那边的外部联系人。这些人不在普通通讯录里，「通讯录标识」拉不到他们。读的是平台存下来的那一份，先调一次同步。
+读企业微信那边的外部联系人。这些人不在普通通讯录里，「通讯录列表」拉不到他们。读的是平台存下来的那一份，先调一次同步。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -657,6 +626,8 @@ POST /v1/accounts/{account_id}/contacts/search
 
 按微信号或手机号搜人，返回一个可用于加好友的 contact_token。
 
+> **建议缓存**：搜到的 wxid、昵称存下来，同一个号不要反复搜：搜得太频繁微信会提示操作过于频繁，一段时间内都搜不了。contact_token 有时效，真要加好友时再搜一次拿新的。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -680,7 +651,9 @@ await wx.contact.search('acc_xxx', { keyword: 'wxid_example' })
 POST /v1/accounts/{account_id}/contacts/add
 ```
 
-用搜索得到的 contact_token 发起好友申请。**这一条慢**：微信自己要 5～20 秒才回，实测平均 9 秒、最慢 16 秒，客户端超时请留够 30 秒。超时了不要直接重发——请求多半已经送出去了，要重试就带上 Idempotency-Key。加得太频繁会被微信限制。
+> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。加好友是微信风控最严的操作之一：不要短时间内连续添加、不要批量自动加人，每次之间拉开间隔；新号、刚换设备或刚登录的号风险更高，建议先正常使用几天再加。
+
+用搜索得到的 contact_token 发起好友申请。**这一条慢**：微信自己要 5～20 秒才回，实测平均 9 秒、最慢 16 秒，客户端超时请留够 30 秒。超时了不要直接重发——请求多半已经送出去了，要重试就带上 Idempotency-Key。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -706,6 +679,8 @@ await wx.contact.add('acc_xxx', { contact_token: '...' })
 ```
 POST /v1/accounts/{account_id}/contacts/accept
 ```
+
+> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。短时间内大量通过好友申请同样会触发风控：不要收到就立刻批量自动通过，每次之间拉开间隔，数量多时分散到不同时间段处理。
 
 同意别人的好友申请，用事件里给出的 friend_request_token。
 
@@ -784,6 +759,8 @@ GET /v1/accounts/{account_id}/labels
 ```
 
 列出这个实例的联系人标签。标签只有自己看得见。
+
+> **建议缓存**：标签只有你自己改了才会变。取一次存起来，自己新建、改名、删除之后再更新本地那份。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -877,28 +854,28 @@ await wx.label.delete('acc_xxx', '...')
 
 </details>
 
-### 设置标签成员
+### 设置联系人的标签
 
 ```
-PUT /v1/accounts/{account_id}/labels/{label_id}/members
+PUT /v1/accounts/{account_id}/contacts/labels
 ```
 
-设置哪些联系人带这个标签。是覆盖不是追加：没列进来的会被摘掉。
+给这些联系人设置标签。是覆盖：他们原来带的标签会被这一组替换掉，label_ids 传空数组就是把标签全摘了。没写进 wxids 的联系人不受影响——给别人打上某个标签，不会把这个标签从其他人身上拿走。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `label_id` | 路径 | integer | 是 | 标签 ID |
-| `wxids` | 请求体 | array | 是 | 带这个标签的 wxid 全集 |
+| `wxids` | 请求体 | array | 是 | 要设置的联系人，一次最多 50 个 |
+| `label_ids` | 请求体 | array | 是 | 这些联系人之后带的标签 ID 全集，对应标签列表里的 ID；传空数组表示不带任何标签 |
 
 <details><summary>各语言怎么调</summary>
 
 ```python
-wx.label_members("acc_xxx", "...", wxids=["wxid_a"])
+wx.contact_labels("acc_xxx", wxids=["wxid_a"], label_ids=[1, 6])
 ```
 
 ```javascript
-await wx.label.members('acc_xxx', '...', { wxids: ['wxid_a'] })
+await wx.contact.labels('acc_xxx', { wxids: ['wxid_a'], label_ids: [1, 6] })
 ```
 
 </details>
@@ -939,6 +916,8 @@ GET /v1/accounts/{account_id}/groups/{group_id}
 
 读群的名称、公告、群主等资料。
 
+> **建议缓存**：群资料存起来，收到 group.renamed 再刷新。公告、群主很少变，不要每条群消息都来取一次。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -964,6 +943,8 @@ GET /v1/accounts/{account_id}/groups/{group_id}/members
 
 列出群成员。
 
+> **建议缓存**：成员列表存起来，照 group.member_joined / group.member_left 事件增减。每次都是现去微信拉，大群又慢又重，不要定时整份重拉。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -988,6 +969,8 @@ POST /v1/accounts/{account_id}/groups/{group_id}/members/detail
 ```
 
 读指定几个群成员的完整资料，比群成员列表更全。
+
+> **建议缓存**：成员资料按 wxid 存起来，不要每条群消息都查一次说话人的资料。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1225,6 +1208,8 @@ GET /v1/accounts/{account_id}/groups/{group_id}/qrcode
 
 取群的邀请二维码，返回 data URL，可直接放进 img。
 
+> **建议缓存**：群二维码 7 天内有效，取一次存成图片，快过期了再重新取。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -1388,7 +1373,6 @@ POST /v1/accounts/{account_id}/messages/text
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
-| `to_list` | 请求体 | array | 否 | 一次发给多个接收者，与 to 二选一 |
 | `content` | 请求体 | string | 是 | 消息正文 |
 | `mentions` | 请求体 | array | 否 | 要 @ 的 wxid，只在群里有意义 |
 
@@ -1745,6 +1729,8 @@ GET /v1/accounts/{account_id}/favorites
 
 列出这个实例收藏的内容。cursor 留空从头读，返回的 next_cursor 为空表示到底。
 
+> **建议缓存**：收藏只在你自己收藏或删除时才变，取一次存起来，不要轮询。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -1769,6 +1755,8 @@ GET /v1/accounts/{account_id}/favorites/{fav_id}
 ```
 
 读一条收藏的完整内容。内容是微信自己的 XML，不同类型结构不同，原样返回。
+
+> **建议缓存**：一条收藏的内容不会变，按 fav_id 存起来，取过就不用再取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1848,6 +1836,8 @@ POST /v1/accounts/{account_id}/media/download
 ```
 
 取一条消息里的图片、视频、文件或语音，返回一个限时下载地址。
+
+> **建议缓存**：下载地址是限时的，文件拿到后存到你自己那边，不要每次展示都重新下载。平台这边下载的文件总量超过上限时会清掉最早的一半，别拿它当长期存储。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1954,6 +1944,8 @@ GET /v1/accounts/{account_id}/moments
 
 读自己看到的朋友圈时间线。
 
+> **建议缓存**：每次都是现去微信取，不要写成定时刷新：刷得太勤属于异常行为。需要时再取，取到的动态自己存起来。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -1979,6 +1971,8 @@ GET /v1/accounts/{account_id}/moments/{moment_id}
 
 读一条朋友圈。列表会截断点赞与评论，这里是完整的。
 
+> **建议缓存**：一条动态的正文和图片不会变，取过就存起来；只有想看最新的点赞评论时才需要再取。
+
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
@@ -2003,6 +1997,8 @@ GET /v1/accounts/{account_id}/moments/user/{wxid}
 ```
 
 读某个联系人的朋友圈主页。
+
+> **建议缓存**：每次都是现去微信取，不要写成定时刷新：刷得太勤属于异常行为。需要时再取，取到的动态自己存起来。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
