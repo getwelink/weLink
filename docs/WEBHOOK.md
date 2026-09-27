@@ -69,7 +69,7 @@ WeLink.verifyWebhook(secret, rawBody, request.getHeader("X-Orbit-Signature"));
 | `contact.deleted` | 联系人删除 | 对方把你删了，或你删了对方。只保证有 wxid |
 | `account.scanned` | 二维码被扫 | 扫码登录时对方扫了码，还没点确认 |
 | `account.online` | 实例上线 | 扫码完成，或自动恢复成功 |
-| `account.offline` | 实例掉线 | 实例不再可用。reason 是结果，cause 是谁判定的：wechat（微信自己说会话结束，detail 是它的原话）、proxy（代理网络连不上，根本没到微信）、platform（平台自己决定：主动退出、额度到期、恢复超时） |
+| `account.offline` | 实例掉线 | 实例不再可用。reason 是给程序判断用的固定值，reason_text 是同一件事的中文说法，可直接展示给用户；cause 是谁判定的：wechat（微信自己说会话结束，detail 是它的原话）、proxy（代理网络连不上，根本没到微信）、platform（平台自己决定：主动退出、额度到期、恢复超时） |
 | `account.recovering` | 正在自动恢复 | 连接断了，平台正在自己恢复。你什么都不用做，到 deadline_at 还没好会转成 account.offline |
 | `group.member_joined` | 群成员加入 | 有人进群 |
 | `group.member_left` | 群成员退出 | 有人退群或被移出 |
