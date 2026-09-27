@@ -2310,7 +2310,7 @@ await wx.platform.me()
 GET /v1/events
 ```
 
-读平台记录的事件，可按实例、类型、消息类型与时间筛选。没配 Webhook 时可以轮询这里。
+读平台记录的事件，可按实例、类型、消息类型与时间筛选。没配 Webhook 时可以轮询这里。 轮询的写法：第一次可以用 since 从某个时间开始，之后每次带上一次返回的 next_cursor，从它后面接着读。这一页只要有事件就一定会给 next_cursor；没有新事件时它是空的，保留你手上那个别动。has_more 为 true 说明后面还有，马上接着读；否则歇几秒再来。处理到一半重启、游标没来得及存下，重读时会再拿到同几条，所以最好按 event_id 去重。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -2321,7 +2321,7 @@ GET /v1/events
 | `until` | 查询串 | string | 否 | 只看这个时间之前的，RFC3339 或 Unix 秒 |
 | `keyword` | 查询串 | string | 否 | 按事件内容搜索。需要同时给时间范围，且不超过 1 小时 |
 | `order` | 查询串 | string | 否 | oldest 从头逐条读（默认），newest 先看最近发生的，可选值：`oldest` / `newest` |
-| `cursor` | 查询串 | string | 否 | 上一页返回的 next_cursor，首页留空 |
+| `cursor` | 查询串 | string | 否 | 上一次返回的 next_cursor，从它后面接着读；第一次留空。返回空的时候保留上一次的 |
 | `limit` | 查询串 | integer | 否 | 每页条数，最多 200，超过按 200 处理 |
 
 <details><summary>各语言怎么调</summary>

@@ -1219,12 +1219,12 @@ function build(self) {
       return self.call('GET', '/me')
     },
     /**
-     * 事件列表 —— 读平台记录的事件，可按实例、类型、消息类型与时间筛选。没配 Webhook 时可以轮询这里。
+     * 事件列表 —— 读平台记录的事件，可按实例、类型、消息类型与时间筛选。没配 Webhook 时可以轮询这里。 轮询的写法：第一次可以用 since 从某个时间开始，之后每次带上一次返回的 next_cursor，从它后面接着读。这一页只要有事件就一定会给 next_cursor；没有新事件时它是空的，保留你手上那个别动。has_more 为 true 说明后面还有，马上接着读；否则歇几秒再来。处理到一半重启、游标没来得及存下，重读时会再拿到同几条，所以最好按 event_id 去重。
      *
      * GET /v1/events
      * @param {object} opts
      * @param {string} [opts.account_id] 只看某个实例
-     * @param {string} [opts.cursor] 上一页返回的 next_cursor，首页留空
+     * @param {string} [opts.cursor] 上一次返回的 next_cursor，从它后面接着读；第一次留空。返回空的时候保留上一次的
      * @param {string} [opts.keyword] 按事件内容搜索。需要同时给时间范围，且不超过 1 小时
      * @param {number} [opts.limit] 每页条数，最多 200，超过按 200 处理
      * @param {string} [opts.message_type] 只看某种消息，如 text、image、file，可重复；非消息事件不会命中
