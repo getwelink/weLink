@@ -17,7 +17,9 @@ wx = WeLink(
 )
 
 # 1. 开一个实例。已经有了就跳过这步，直接用它的 account_id。
-account = wx.account_create(platform="ipad", name="我的第一个实例")
+#    proxy 必填：area: 后面跟省份代码，平台会分一个那个省的代理给你，440000 是广东。
+#    离你常用手机所在的省越近越好。
+account = wx.account_create(proxy="area:440000", name="我的第一个实例")
 account_id = account["account_id"]
 print("实例已创建：", account_id)
 
@@ -27,13 +29,14 @@ print("二维码（把这个 data URL 贴到浏览器地址栏就能看到）：
 print(code["qrcode"][:80], "...")
 
 # 3. 等扫码。状态会依次走到 scanned、online。
+#    Mac 登录扫完还要过一次新设备验证，平台自动做，会在 scanned 停一会儿，别急着取消。
 while True:
     status = wx.account_login_status(account_id)
-    print("  当前状态：", status.get("status"))
+    print("  当前状态：", status.get("status"), status.get("notice", ""))
     if status.get("status") == "online":
         break
-    if status.get("status") in ("created", "offline"):
-        print("  二维码过期了，重新取一张")
+    if status.get("status") in ("expired", "cancelled", "offline"):
+        print("  这张码用不了了，重新取一张")
         code = wx.account_qrcode(account_id)
     time.sleep(3)
 

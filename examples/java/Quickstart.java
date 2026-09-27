@@ -20,8 +20,10 @@ public class Quickstart {
         WeLink wx = new WeLink(System.getenv("WELINK_API_KEY"), System.getenv("WELINK_BASE_URL"));
 
         // 1. 开一个实例。已经有了就跳过这步，直接用它的 account_id。
+        //    proxy 必填：area: 后面跟省份代码，平台会分一个那个省的代理给你，440000 是广东。
+        //    离你常用手机所在的省越近越好。
         Map<?, ?> account = (Map<?, ?>) wx.accountCreate(
-                Map.of("platform", "ipad", "name", "我的第一个实例"));
+                Map.of("proxy", "area:440000", "name", "我的第一个实例"));
         String accountId = String.valueOf(account.get("account_id"));
         System.out.println("实例已创建：" + accountId);
 
@@ -31,12 +33,18 @@ public class Quickstart {
         System.out.println("二维码（把这个 data URL 贴到浏览器地址栏就能看到）：");
         System.out.println(dataUrl.substring(0, Math.min(80, dataUrl.length())) + " ...");
 
-        // 3. 等扫码。
+        // 3. 等扫码。Mac 登录扫完还要过一次新设备验证，平台自动做，
+        //    会在 scanned 停一会儿，别急着取消。
         while (true) {
             Map<?, ?> status = (Map<?, ?>) wx.accountLoginStatus(accountId);
-            System.out.println("  当前状态：" + status.get("status"));
+            Object notice = status.get("notice");
+            System.out.println("  当前状态：" + status.get("status") + (notice == null ? "" : " " + notice));
             if ("online".equals(status.get("status"))) {
                 break;
+            }
+            if (List.of("expired", "cancelled", "offline").contains(status.get("status"))) {
+                System.out.println("  这张码用不了了，重新取一张");
+                wx.accountQrcode(accountId, null);
             }
             Thread.sleep(3000);
         }
