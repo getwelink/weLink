@@ -15,7 +15,7 @@
 | `40100` | 401 | UNAUTHORIZED | API Key 无效或已禁用 |
 | `40300` | 403 | FORBIDDEN | 无权访问该资源 |
 | `40301` | 403 | LICENSE_EXPIRED | 授权已到期，请续期后再试 |
-| `40302` | 403 | QUOTA_EXCEEDED | 账号额度不足 |
+| `40302` | 403 | QUOTA_EXCEEDED | 实例额度不足 |
 | `40303` | 403 | PENDING_REVIEW | 该账号正在等待人工审核 |
 | `40304` | 403 | TRAFFIC_EXHAUSTED | 今日流量已用完 |
 | `40400` | 404 | NOT_FOUND | 资源不存在 |
@@ -30,7 +30,7 @@
 | `52003` | 200 | QRCODE_EXPIRED | 二维码已过期，请重新获取 |
 | `52004` | 200 | CAPTCHA_REQUIRED | 需要完成安全验证 |
 | `52005` | 200 | SESSION_UNSTABLE | 登录环境异常，正在尝试恢复，请稍后重试 |
-| `52006` | 200 | EGRESS_UNREACHABLE | 代理网络连不上，请检查后重试 |
+| `52006` | 200 | EGRESS_UNREACHABLE | 无法连接代理网络，请检查后重试 |
 | `52100` | 200 | CONTACT_NOT_FOUND | 未搜索到该用户 |
 | `52101` | 200 | FRIEND_REQUEST_LIMITED | 添加好友过于频繁或已受限 |
 | `52200` | 200 | SEND_FAILED | 消息发送失败 |
@@ -40,4 +40,4 @@
 | `52204` | 200 | CONTENT_BLOCKED | 内容被微信安全策略拦截，请调整后重试 |
 | `52205` | 200 | SEND_TOO_FREQUENT | 发送过于频繁，已被微信临时限制 |
 | `52300` | 200 | MOMENT_FAILED | 朋友圈操作失败 |
-| `52301` | 200 | MOMENT_COOLDOWN | 账号新登录未满 24 小时，暂时只能浏览朋友圈 |
+| `52301` | 200 | MOMENT_COOLDOWN | 账号登录未满 24 小时，暂时只能浏览朋友圈 |

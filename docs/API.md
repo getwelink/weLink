@@ -38,15 +38,15 @@
 POST /v1/accounts
 ```
 
-开一个实例。占用一个额度，删除后归还。创建后还要扫码才会上线。
+创建一个实例。每个实例占用一个额度，删除实例后额度归还。实例创建后需要扫码登录才会上线。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
-| `platform` | 请求体 | string | 否 | 登录方式，留空用默认的。不是每个部署两种都开通，没开通的会直接报错并列出能选的，可选值：`ipad` / `mac` |
-| `name` | 请求体 | string | 否 | 备注名称，只给自己看 |
-| `proxy` | 请求体 | string | 是 | 出口网络，必填，不能直连。两种填法：socks5 代理地址（socks5://user:pass@host:port），或者网络助手的网络ID（把网络助手装到一台手机上，打开即可看到，这台手机的网络就是这个实例的出口）—— 填网络ID时地址由平台代取，网络助手离线会被拒绝，凭据轮换后重连前会自动重取 |
-| `webhook_url` | 请求体 | string | 否 | 该实例的事件推送地址 |
-| `keep_history` | 请求体 | boolean | 否 | 是否保存收发消息和推送记录，默认 true。设为 false 时消息不写入数据库、推送记录投递完即删；图片等文件照常可下载，撤回照常可用，但查不到历史消息，文字和卡片消息也无法转发 |
+| `platform` | 请求体 | string | 否 | 登录方式，留空时使用默认方式。并非每个部署都同时开通了两种方式。选择未开通的方式会直接报错，错误信息中会列出可选的方式，可选值：`ipad` / `mac` |
+| `name` | 请求体 | string | 否 | 备注名称，仅自己可见 |
+| `proxy` | 请求体 | string | 是 | 代理网络，必填，不能直连。有两种填法：socks5 代理地址，如 socks5://user:pass@host:port；网络助手的网络ID，在一台手机上安装并打开网络助手即可看到，实例将通过这台手机的网络连接微信。填网络ID时，代理地址由平台自动获取。网络助手不在线时，请求会被拒绝。网络助手的凭据更新后，平台会在重新连接前自动获取新的代理地址 |
+| `webhook_url` | 请求体 | string | 否 | 接收该实例事件的 Webhook 地址 |
+| `keep_history` | 请求体 | boolean | 否 | 是否保存收发的消息和推送记录，默认 true。设为 false 时，消息不写入数据库，推送记录在投递结束后立即删除。图片等文件仍可下载，撤回功能仍可使用；但无法查询历史消息，也无法转发文字和卡片消息 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -66,7 +66,7 @@ await wx.account.create({ proxy: 'socks5://user:pass@host:port' })
 GET /v1/accounts
 ```
 
-列出你的全部实例与它们的状态。
+列出你的全部实例及其状态。
 
 <details><summary>各语言怎么调</summary>
 
@@ -86,7 +86,7 @@ await wx.account.list()
 GET /v1/accounts/{account_id}
 ```
 
-读一个实例。不在线时 reason 会说明原因（manual 主动退出、kicked 被别处挤下线、relogin_required 需重新扫码、recover_timeout 恢复超时、expired 授权到期）；status 为 recovering 时 recovering 里带恢复方式与放弃时间。
+查询一个实例的详情。实例不在线时，reason 字段说明原因：manual 表示主动退出，kicked 表示因其他设备登录而被挤下线，relogin_required 表示需要重新扫码登录，recover_timeout 表示自动恢复超时，expired 表示授权到期。status 为 recovering 时，recovering 字段给出恢复方式和放弃恢复的时间。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -110,12 +110,12 @@ await wx.account.get('acc_xxx')
 POST /v1/accounts/{account_id}/login/qrcode
 ```
 
-取一张登录二维码，用手机扫。expires_in 是这张码还剩多少秒，以返回值为准，不要写死；过期了再取一张即可。带上 proxy 可以顺便换代理网络 —— 它是开会话时定下的，换了要重开会话，所以只能在扫码这一刻换；不传则沿用原来的。
+获取一张登录二维码，用手机微信扫码登录。expires_in 是二维码剩余的有效秒数，请以返回值为准，不要写死。二维码过期后重新获取即可。请求时可以带上 proxy 来更换代理网络。代理网络在建立登录会话时确定，更换后需要重新建立会话，所以只能在获取二维码时更换。不传 proxy 则沿用原来的代理网络。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `proxy` | 请求体 | string | 否 | 改用这个出口网络：socks5 地址或网络助手的网络ID；不传则沿用实例现有的。不能传空串——实例必须有出口，直连是不允许的 |
+| `proxy` | 请求体 | string | 否 | 要改用的代理网络，可以是socks5 地址或网络助手的网络ID。不传则沿用实例现有的代理网络。不能传空字符串，因为实例必须配置代理网络，不允许直连 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -135,7 +135,7 @@ await wx.account.qrcode('acc_xxx')
 GET /v1/accounts/{account_id}/login/status
 ```
 
-轮询扫码进度：waiting（等待扫码）、scanned（已扫码待确认）、verify（等待验证）、online（已上线）、cancelled、expired。等待扫码时还带 expires_in，是这张码此刻还剩多少秒，用它校准倒计时。带 notice 的时候把它原样显示给用户：Mac 端扫码后要过一次新设备验证，平台会自动完成，这期间状态一直停在 scanned，别让用户以为卡住了去取消登录。
+查询扫码登录的进度，供轮询使用。状态取值：waiting（等待扫码）、scanned（已扫码，等待确认）、verify（等待验证）、online（已上线）、cancelled（已取消）、expired（已过期）。状态为 waiting 时还会返回 expires_in，表示二维码此刻剩余的有效秒数，可用于校准倒计时。返回 notice 时，请把它原样展示给用户。Mac 端扫码后需要通过一次新设备验证，平台会自动完成这一步，这期间状态会一直保持为 scanned。请提示用户耐心等待，避免用户误以为登录卡住而取消登录。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -159,7 +159,7 @@ await wx.account.loginStatus('acc_xxx')
 POST /v1/accounts/{account_id}/reconnect
 ```
 
-掉线后尝试不重新扫码就恢复连接。恢复不了才需要重新扫码。
+实例掉线后，尝试在不重新扫码的情况下恢复连接。无法恢复时，才需要重新扫码登录。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -183,7 +183,7 @@ await wx.account.reconnect('acc_xxx')
 POST /v1/accounts/{account_id}/logout
 ```
 
-让实例下线。实例与额度保留，可以再扫码上线。
+让实例下线。实例和额度都会保留，之后可以重新扫码上线。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -207,7 +207,7 @@ await wx.account.logout('acc_xxx')
 DELETE /v1/accounts/{account_id}
 ```
 
-删除槽位并归还额度。历史消息不会立刻清除。在线的实例不能直接删除，请先调用退出登录——否则微信那边的会话还开着，而这边已经没有东西能再去关掉它。
+删除实例并归还额度。历史消息不会立即清除。在线的实例不能直接删除，请先调用「退出登录」。如果直接删除，微信端的登录会话会继续保持，而平台已经无法再关闭它。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -231,9 +231,9 @@ await wx.account.delete('acc_xxx')
 GET /v1/accounts/{account_id}/profile
 ```
 
-读这个实例自己的昵称、头像、地区等资料。
+查询这个实例自己的昵称、头像、地区等资料。
 
-> **建议缓存**：资料很少变，登录成功后取一次存起来就行。平时要用 wxid、昵称、头像，读「实例详情」里的 profile——那条读的是平台存好的，不去微信。
+> **建议缓存**：资料很少变化，登录成功后获取一次并保存即可。平时需要 wxid、昵称、头像时，请读取「实例详情」中的 profile 字段。该字段来自平台已保存的数据，不会向微信发起请求。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -257,7 +257,7 @@ await wx.account.profile('acc_xxx')
 PUT /v1/accounts/{account_id}/profile
 ```
 
-改昵称、签名、性别与地区。字段留空就是清空该项，请把要保留的一起传。
+修改昵称、签名、性别和地区。留空的字段会被清空，请把需要保留的字段一并传入。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -287,7 +287,7 @@ await wx.account.updateProfile('acc_xxx')
 PUT /v1/accounts/{account_id}/profile/avatar
 ```
 
-换头像。
+修改头像。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -312,9 +312,9 @@ await wx.account.setAvatar('acc_xxx', { url: 'https://example.com/a.jpg' })
 GET /v1/accounts/{account_id}/profile/qrcode
 ```
 
-取这个实例自己的名片二维码，返回 data URL，可直接放进 img。
+获取这个实例自己的名片二维码。返回 data URL，可直接用作 img 标签的 src。
 
-> **建议缓存**：名片二维码基本不会变，取一次存成图片反复用，不要每次展示都来取。
+> **建议缓存**：名片二维码基本不会变化。获取一次后保存为图片重复使用，不要每次展示时都重新获取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -338,13 +338,13 @@ await wx.account.qrcodeSelf('acc_xxx')
 PUT /v1/accounts/{account_id}/privacy
 ```
 
-开关一项隐私设置。
+开启或关闭一项隐私设置。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `option` | 请求体 | string | 是 | need_confirm_to_add 加我需验证；findable_by_phone 手机号可搜；findable_by_alias 微信号可搜；recommend_contacts 向我推荐通讯录好友；strangers_see_ten 陌生人看十条朋友圈；visible_days 朋友圈仅展示最近时段，可选值：`need_confirm_to_add` / `findable_by_phone` / `findable_by_alias` / `recommend_contacts` / `strangers_see_ten` / `visible_days` |
-| `enabled` | 请求体 | boolean | 是 | 开或关 |
+| `option` | 请求体 | string | 是 | need_confirm_to_add：加我为好友时需要验证；findable_by_phone：可以通过手机号搜到我；findable_by_alias：可以通过微信号搜到我；recommend_contacts：向我推荐通讯录好友；strangers_see_ten：允许陌生人查看十条朋友圈；visible_days：朋友圈只展示最近一段时间的内容，可选值：`need_confirm_to_add` / `findable_by_phone` / `findable_by_alias` / `recommend_contacts` / `strangers_see_ten` / `visible_days` |
+| `enabled` | 请求体 | boolean | 是 | true 开启，false 关闭 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -364,7 +364,7 @@ await wx.account.privacy('acc_xxx', { option: 'need_confirm_to_add', enabled: tr
 GET /v1/accounts/{account_id}/devices
 ```
 
-列出这个微信号登录过的设备，本平台也在其中。
+列出这个微信号登录过的设备，其中包括本平台。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -388,12 +388,12 @@ await wx.account.devices('acc_xxx')
 DELETE /v1/accounts/{account_id}/devices/{device_id}
 ```
 
-把某个已登录设备踢下线。注意别把本平台自己踢了。
+让某个已登录的设备强制下线。注意不要把本平台自己也下线。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `device_id` | 路径 | string | 是 | 设备 ID，取自已登录设备列表 |
+| `device_id` | 路径 | string | 是 | 设备 ID，从「已登录设备」接口获取 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -413,7 +413,7 @@ await wx.account.deviceSignout('acc_xxx', '...')
 PUT /v1/accounts/{account_id}/history
 ```
 
-设置这个实例是否保存收发消息和推送记录。关闭后：新收发的消息不写入数据库，Webhook 推送记录在投递成功或放弃后立即删除；图片、语音、视频、文件照常可以下载，自己发的消息照常可以撤回，重复推送照常去重；但查不到历史消息，文字和卡片消息也无法转发。事件照常保存。关闭前已经保存的消息不会立刻删除，按原来的保存期自动清理。
+设置这个实例是否保存收发的消息和推送记录。关闭后，新收发的消息不写入数据库，Webhook 推送记录在投递成功或放弃重试后立即删除。图片、语音、视频、文件仍然可以下载，自己发的消息仍然可以撤回，重复的推送仍然会去重。但无法查询历史消息，也无法转发文字和卡片消息。事件仍然会保存。关闭前已保存的消息不会立即删除，会按原来的保存期限自动清理。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -438,14 +438,14 @@ await wx.account.history('acc_xxx', { keep: false })
 PUT /v1/accounts/{account_id}/webhook
 ```
 
-设置该实例事件的推送地址。每次投递都带签名，用 secret 校验。
+设置接收该实例事件的 Webhook 地址。每次推送都带有签名，可以用 secret 校验。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `url` | 请求体 | string | 是 | 接收事件的地址 |
 | `secret` | 请求体 | string | 否 | 签名密钥，留空则保持不变 |
-| `events` | 请求体 | array | 否 | 只推这些类型，留空推全部 |
+| `events` | 请求体 | array | 否 | 只推送这些类型的事件，留空则推送全部事件 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -468,9 +468,9 @@ await wx.account.webhook('acc_xxx', { url: 'https://example.com/wechat/hook' })
 GET /v1/accounts/{account_id}/contacts
 ```
 
-列出通讯录里都有谁，只给标识：好友的 wxid、群的 @chatroom、公众号的 gh_ 开头，一个不筛。要资料再用「联系人详情」按需取——一千个人里你可能只关心十个。直接向微信取，实例要在线；一页多大由微信定，翻页把 next_cursor 原样带回来，为空表示到底。
+列出通讯录中的全部条目，不做任何筛选，只返回标识：好友为 wxid，群 ID 以 @chatroom 结尾，公众号以 gh_ 开头。需要资料时，再用「联系人详情」按需查询。数据直接从微信获取，实例需要在线。每页条数由微信决定。翻页时把 next_cursor 原样传回，next_cursor 为空表示已经到最后一页。
 
-> **建议缓存**：登录成功后拉一次全量存到你自己那边，之后照事件更新：friend.added 新增好友，contact.updated 资料变了，contact.deleted 被删。不要定时整份重拉——每次都是去微信拉全量，人多时又慢又重，频繁拉取还会增加被风控的概率。
+> **建议缓存**：登录成功后拉一次完整列表，保存在你自己的系统中，之后根据事件更新：收到 friend.added 时添加新好友，收到 contact.updated 时更新联系人资料，收到 contact.deleted 时移除联系人。不要定时整份重拉：每次调用都会从微信拉取完整列表，联系人多时耗时长、开销大，频繁拉取还会增加被微信风控的概率。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -495,14 +495,14 @@ await wx.contact.ids('acc_xxx')
 POST /v1/accounts/{account_id}/contacts/batch
 ```
 
-按 wxid 批量取联系人资料。与「联系人详情」走的是微信的两条不同路径，字段相同，这条更适合一次问很多人。
+按 wxid 批量查询联系人资料。它和「联系人详情」调用的是微信的两个不同接口，一次查询很多人时，更适合用这个接口。 对个人好友，还会返回加好友的时间和方式：added_at、added_ts 是添加时间；add_source 是微信记录的添加方式编号，add_source_text 是它的中文说明，比如「扫一扫」「群聊」「搜索手机号」「名片分享」。含义还没有确认的编号只返回 add_source，不返回中文说明。通过群聊加的好友，add_source_group 是来源群的 ID。微信没有记录的项不返回。群和公众号不返回这几个字段。 所有联系人还会返回：avatar_large 高清头像（avatar 是小图）；pinyin 昵称和备注的拼音，全拼小写、首字母大写，可以用来排序和搜索；phones 是在微信备注里给这个人填写的电话号码。没有的项不返回。
 
-> **建议缓存**：资料按 wxid 存起来，收到 contact.updated 再更新那一个人。不要每来一条消息就查一次发送人的资料。
+> **建议缓存**：按 wxid 保存查到的资料，收到 contact.updated 事件时再更新对应联系人的资料。不要每收到一条消息就查询一次发送人的资料。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `wxids` | 请求体 | array | 是 | 要查的 wxid 列表 |
+| `wxids` | 请求体 | array | 是 | 要查询的 wxid 列表 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -522,14 +522,14 @@ await wx.contact.batch('acc_xxx', { wxids: ['wxid_example'] })
 POST /v1/accounts/{account_id}/contacts/detail
 ```
 
-读联系人的完整资料：昵称、备注、微信号、头像、性别、地区、签名，以及他带的标签（label_ids，对应标签列表里的 ID；没有标签时不返回这个字段）。
+查询联系人的完整资料，包括昵称、备注、微信号、头像、性别、地区、签名，以及该联系人的标签。标签在 label_ids 字段中，对应「标签列表」里的 ID；联系人没有标签时不返回这个字段。个人好友还会返回加好友的方式 add_source 和 add_source_text，通过群聊加的好友还有来源群 add_source_group；加好友的时间只有「批量取详情」能查到，这里不返回。高清头像 avatar_large、拼音 pinyin、备注电话 phones 和「批量取详情」一样返回。
 
-> **建议缓存**：资料按 wxid 存起来，收到 contact.updated 再更新那一个人。不要每来一条消息就查一次发送人的资料。
+> **建议缓存**：按 wxid 保存查到的资料，收到 contact.updated 事件时再更新对应联系人的资料。不要每收到一条消息就查询一次发送人的资料。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `wxids` | 请求体 | array | 是 | 要查的 wxid，一次最多 50 个 |
+| `wxids` | 请求体 | array | 是 | 要查询的 wxid，一次最多 50 个 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -549,9 +549,9 @@ await wx.contact.detail('acc_xxx', { wxids: ['wxid_a'] })
 POST /v1/accounts/{account_id}/contacts/check
 ```
 
-查这些人是否还是好友。注意：微信对这个操作盯得很紧，查得多或查得频繁会导致实例被限制，一次最多 20 个，请按需使用。
+检测这些人是否仍是你的好友。注意：微信对这个操作限制很严，一次检测的人数多或检测频繁，都可能导致实例被限制。一次最多检测 20 个，请按需使用。
 
-> **建议缓存**：查过的结果存下来，同一个人短时间内不要重复查。
+> **建议缓存**：保存检测结果，同一个人在短时间内不要重复检测。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -576,7 +576,7 @@ await wx.contact.check('acc_xxx', { wxids: ['wxid_a'] })
 GET /v1/accounts/{account_id}/contacts/external
 ```
 
-读企业微信那边的外部联系人。这些人不在普通通讯录里，「通讯录列表」拉不到他们。读的是平台存下来的那一份，先调一次同步。
+查询企业微信的外部联系人。这些联系人不在普通通讯录中，「通讯录列表」接口查不到他们。本接口返回平台已保存的数据，使用前请先调用一次「同步企微联系人」。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -600,7 +600,7 @@ await wx.contact.external('acc_xxx')
 POST /v1/accounts/{account_id}/contacts/external/sync
 ```
 
-去微信那边重新拉一遍企微外部联系人并存下来，返回拉到多少个。没有头像的会逐个补拉，人多时会慢一些，不建议频繁调用。
+从微信重新拉取企业微信的外部联系人并保存到平台，返回拉取到的人数。没有头像的联系人会逐个补充获取头像，人数多时耗时较长，不建议频繁调用。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -624,9 +624,9 @@ await wx.contact.externalSync('acc_xxx')
 POST /v1/accounts/{account_id}/contacts/search
 ```
 
-按微信号或手机号搜人，返回一个可用于加好友的 contact_token。
+按微信号或手机号搜索用户，返回可用于添加好友的 contact_token。
 
-> **建议缓存**：搜到的 wxid、昵称存下来，同一个号不要反复搜：搜得太频繁微信会提示操作过于频繁，一段时间内都搜不了。contact_token 有时效，真要加好友时再搜一次拿新的。
+> **建议缓存**：保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -651,16 +651,16 @@ await wx.contact.search('acc_xxx', { keyword: 'wxid_example' })
 POST /v1/accounts/{account_id}/contacts/add
 ```
 
-> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。加好友是微信风控最严的操作之一：不要短时间内连续添加、不要批量自动加人，每次之间拉开间隔；新号、刚换设备或刚登录的号风险更高，建议先正常使用几天再加。
+> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。
 
-用搜索得到的 contact_token 发起好友申请。**这一条慢**：微信自己要 5～20 秒才回，实测平均 9 秒、最慢 16 秒，客户端超时请留够 30 秒。超时了不要直接重发——请求多半已经送出去了，要重试就带上 Idempotency-Key。
+用搜索得到的 contact_token 发起好友申请。**这个接口响应较慢**：微信需要 5～20 秒才返回结果，实测平均 9 秒，最慢 16 秒。客户端超时时间请至少设为 30 秒。请求超时后不要直接重发，因为请求很可能已经发送成功。需要重试时，请带上 Idempotency-Key。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `contact_token` | 请求体 | string | 是 | 搜索结果里的 contact_token |
-| `greeting` | 请求体 | string | 否 | 打招呼的话 |
-| `scene` | 请求体 | string | 否 | 申请来源，留空用默认值 |
+| `contact_token` | 请求体 | string | 是 | 搜索结果中的 contact_token |
+| `greeting` | 请求体 | string | 否 | 发给对方的验证消息 |
+| `scene` | 请求体 | string | 否 | 申请来源，留空则使用默认值 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -680,14 +680,14 @@ await wx.contact.add('acc_xxx', { contact_token: '...' })
 POST /v1/accounts/{account_id}/contacts/accept
 ```
 
-> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。短时间内大量通过好友申请同样会触发风控：不要收到就立刻批量自动通过，每次之间拉开间隔，数量多时分散到不同时间段处理。
+> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。短时间内大量通过好友申请同样会触发风控。不要在收到申请后立即批量自动通过，每次通过之间要留出间隔；申请数量多时，请分散到不同时间段处理。
 
-同意别人的好友申请，用事件里给出的 friend_request_token。
+通过他人的好友申请。需要传入好友申请事件中的 friend_request_token。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `friend_request_token` | 请求体 | string | 是 | 好友申请事件里的 token |
+| `friend_request_token` | 请求体 | string | 是 | 好友申请事件中的 friend_request_token |
 
 <details><summary>各语言怎么调</summary>
 
@@ -707,7 +707,7 @@ await wx.contact.accept('acc_xxx', { friend_request_token: '...' })
 PUT /v1/accounts/{account_id}/contacts/{wxid}/remark
 ```
 
-给一个联系人改备注名。
+修改一个联系人的备注名。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -733,7 +733,7 @@ await wx.contact.remark('acc_xxx', '...', { remark: '老王' })
 DELETE /v1/accounts/{account_id}/contacts/{wxid}
 ```
 
-把人从通讯录里删掉。对方不会收到通知，但从此发不进来；要恢复得重新加。
+将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。如需恢复，需要重新添加好友。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -758,9 +758,9 @@ await wx.contact.delete('acc_xxx', '...')
 GET /v1/accounts/{account_id}/labels
 ```
 
-列出这个实例的联系人标签。标签只有自己看得见。
+列出这个实例的联系人标签。标签仅自己可见。
 
-> **建议缓存**：标签只有你自己改了才会变。取一次存起来，自己新建、改名、删除之后再更新本地那份。
+> **建议缓存**：标签只有在你自己修改时才会变化。获取一次并保存，之后在新建、改名或删除标签后，再更新你保存的数据。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -784,7 +784,7 @@ await wx.label.list('acc_xxx')
 POST /v1/accounts/{account_id}/labels
 ```
 
-新建一个联系人标签，返回它的 label_id。
+新建一个联系人标签，返回该标签的 label_id。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -809,7 +809,7 @@ await wx.label.add('acc_xxx', { name: '重点客户' })
 PUT /v1/accounts/{account_id}/labels/{label_id}
 ```
 
-改一个标签的名字。
+修改一个标签的名称。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -835,7 +835,7 @@ await wx.label.rename('acc_xxx', '...', { name: '老客户' })
 DELETE /v1/accounts/{account_id}/labels/{label_id}
 ```
 
-删掉一个标签。带这个标签的联系人不受影响，只是不再带它。
+删除一个标签。带有这个标签的联系人本身不受影响，只是不再带有该标签。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -860,13 +860,13 @@ await wx.label.delete('acc_xxx', '...')
 PUT /v1/accounts/{account_id}/contacts/labels
 ```
 
-给这些联系人设置标签。是覆盖：他们原来带的标签会被这一组替换掉，label_ids 传空数组就是把标签全摘了。没写进 wxids 的联系人不受影响——给别人打上某个标签，不会把这个标签从其他人身上拿走。
+为指定的联系人设置标签。设置采用覆盖方式：这些联系人原有的标签会全部替换为本次传入的标签。label_ids 传空数组表示移除他们的全部标签。不在 wxids 中的联系人不受影响。给某些联系人设置一个标签，不会把这个标签从其他联系人身上移除。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `wxids` | 请求体 | array | 是 | 要设置的联系人，一次最多 50 个 |
-| `label_ids` | 请求体 | array | 是 | 这些联系人之后带的标签 ID 全集，对应标签列表里的 ID；传空数组表示不带任何标签 |
+| `wxids` | 请求体 | array | 是 | 要设置标签的联系人 wxid，一次最多 50 个 |
+| `label_ids` | 请求体 | array | 是 | 设置后这些联系人拥有的全部标签 ID，对应「标签列表」里的 ID。传空数组表示不带任何标签 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -889,7 +889,7 @@ await wx.contact.labels('acc_xxx', { wxids: ['wxid_a'], label_ids: [1, 6] })
 POST /v1/accounts/{account_id}/groups
 ```
 
-拉几个好友建一个群。至少两个成员。
+邀请几位好友创建一个群聊，至少需要两个成员。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -914,9 +914,9 @@ await wx.group.create('acc_xxx', { members: ['wxid_a', 'wxid_b'] })
 GET /v1/accounts/{account_id}/groups/{group_id}
 ```
 
-读群的名称、公告、群主等资料。
+查询群的名称、公告、群主等资料。
 
-> **建议缓存**：群资料存起来，收到 group.renamed 再刷新。公告、群主很少变，不要每条群消息都来取一次。
+> **建议缓存**：保存群资料，收到 group.renamed 事件时再重新获取。公告和群主很少变化，不要每收到一条群消息就查询一次。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -943,7 +943,7 @@ GET /v1/accounts/{account_id}/groups/{group_id}/members
 
 列出群成员。
 
-> **建议缓存**：成员列表存起来，照 group.member_joined / group.member_left 事件增减。每次都是现去微信拉，大群又慢又重，不要定时整份重拉。
+> **建议缓存**：保存成员列表，之后根据 group.member_joined 和 group.member_left 事件增减成员。每次调用都会实时从微信拉取，大群耗时长、开销大，不要定时重新拉取整个列表。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -968,15 +968,15 @@ await wx.group.members('acc_xxx', '...')
 POST /v1/accounts/{account_id}/groups/{group_id}/members/detail
 ```
 
-读指定几个群成员的完整资料，比群成员列表更全。
+查询指定群成员的完整资料，字段比「群成员」接口更全。
 
-> **建议缓存**：成员资料按 wxid 存起来，不要每条群消息都查一次说话人的资料。
+> **建议缓存**：按 wxid 保存成员资料，不要每收到一条群消息就查询一次发言人的资料。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `group_id` | 路径 | string | 是 | 群 ID |
-| `members` | 请求体 | array | 是 | 要查的 wxid |
+| `members` | 请求体 | array | 是 | 要查询的 wxid |
 
 <details><summary>各语言怎么调</summary>
 
@@ -996,7 +996,7 @@ await wx.group.memberDetail('acc_xxx', '...', { members: ['wxid_a'] })
 POST /v1/accounts/{account_id}/groups/{group_id}/invite
 ```
 
-邀请好友进群。群人数多时微信会改为发邀请链接。
+邀请好友入群。群人数较多时，微信会改为发送邀请链接。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1023,7 +1023,7 @@ await wx.group.invite('acc_xxx', '...', { members: ['wxid_a'] })
 POST /v1/accounts/{account_id}/groups/{group_id}/members/remove
 ```
 
-把人移出群。只有群主和管理员能做。
+将成员移出群聊。只有群主和管理员可以操作。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1049,14 +1049,14 @@ await wx.group.remove('acc_xxx', '...', { members: ['wxid_a'] })
 POST /v1/accounts/{account_id}/groups/{group_id}/admins
 ```
 
-设置或取消群管理员，也可以转让群主。只有群主能做。
+设置或取消群管理员，也可以转让群主。只有群主可以操作。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `group_id` | 路径 | string | 是 | 群 ID |
-| `action` | 请求体 | string | 是 | grant 设为管理员，revoke 取消，transfer 转让群主（只能一个人），可选值：`grant` / `revoke` / `transfer` |
-| `members` | 请求体 | array | 是 | 目标 wxid |
+| `action` | 请求体 | string | 是 | grant 设为管理员，revoke 取消管理员，transfer 转让群主（转让群主时 members 只能填一个人），可选值：`grant` / `revoke` / `transfer` |
+| `members` | 请求体 | array | 是 | 目标成员的 wxid |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1076,7 +1076,7 @@ await wx.group.admins('acc_xxx', '...', { action: 'grant', members: ['wxid_a'] }
 PUT /v1/accounts/{account_id}/groups/{group_id}/name
 ```
 
-改群名称。需要有权限改。
+修改群名称。需要有修改群名称的权限。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1102,7 +1102,7 @@ await wx.group.rename('acc_xxx', '...', { name: '项目群' })
 PUT /v1/accounts/{account_id}/groups/{group_id}/announcement
 ```
 
-改群公告。只有群主和管理员能做，会给全群发一条提示。
+修改群公告。只有群主和管理员可以操作，修改后会向全群发送一条提示。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1128,7 +1128,7 @@ await wx.group.announcement('acc_xxx', '...', { content: '今晚八点开会' })
 PUT /v1/accounts/{account_id}/groups/{group_id}/remark
 ```
 
-给群起一个只有自己看得到的名字。
+为群设置一个仅自己可见的备注名。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1154,7 +1154,7 @@ await wx.group.remark('acc_xxx', '...', { remark: '客户群 A' })
 PUT /v1/accounts/{account_id}/groups/{group_id}/nickname
 ```
 
-改自己在这个群里显示的名字。
+修改自己在这个群里显示的昵称。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1180,7 +1180,7 @@ await wx.group.nickname('acc_xxx', '...', { nickname: '小林-客服' })
 PUT /v1/accounts/{account_id}/groups/{group_id}/kept
 ```
 
-把群保存到通讯录，或取消保存。不保存的群在会话删除后就找不回来了。
+将群保存到通讯录，或取消保存。没有保存到通讯录的群，在聊天会话被删除后将无法再找到。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1206,9 +1206,9 @@ await wx.group.kept('acc_xxx', '...', { enabled: true })
 GET /v1/accounts/{account_id}/groups/{group_id}/qrcode
 ```
 
-取群的邀请二维码，返回 data URL，可直接放进 img。
+获取群的邀请二维码。返回 data URL，可直接用作 img 标签的 src。
 
-> **建议缓存**：群二维码 7 天内有效，取一次存成图片，快过期了再重新取。
+> **建议缓存**：群二维码 7 天内有效。获取一次后保存为图片，快过期时再重新获取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1233,7 +1233,7 @@ await wx.group.qrcode('acc_xxx', '...')
 POST /v1/accounts/{account_id}/groups/join
 ```
 
-用收到的群邀请链接进群。
+通过收到的群邀请链接加入群聊。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1258,7 +1258,7 @@ await wx.group.join('acc_xxx', { url: 'https://support.weixin.qq.com/...' })
 POST /v1/accounts/{account_id}/groups/preview
 ```
 
-拿一个群邀请链接先看看是什么群，不进群。usable 为 false 时 notice 说明原因，比如链接已过期。
+查看群邀请链接对应的群信息，不会加入该群。usable 为 false 时，notice 字段说明原因，比如链接已过期。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1283,15 +1283,15 @@ await wx.group.preview('acc_xxx', { url: 'https://weixin.qq.com/g/xxxx' })
 POST /v1/accounts/{account_id}/groups/{group_id}/approve
 ```
 
-群成员邀请了人进群，群主在这里放行。四个参数都来自那条邀请事件。
+群成员邀请他人入群后，群主用这个接口同意邀请。inviter、message_id、ticket、members 四个参数都来自这条邀请事件。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `group_id` | 路径 | string | 是 | 群 ID |
 | `inviter` | 请求体 | string | 是 | 邀请人的 wxid |
-| `message_id` | 请求体 | string | 是 | 邀请事件里的消息 ID |
-| `ticket` | 请求体 | string | 是 | 邀请事件里的凭据 |
+| `message_id` | 请求体 | string | 是 | 邀请事件中的消息 ID |
+| `ticket` | 请求体 | string | 是 | 邀请事件中的凭据 |
 | `members` | 请求体 | array | 是 | 被邀请人的 wxid |
 
 <details><summary>各语言怎么调</summary>
@@ -1312,13 +1312,13 @@ await wx.group.approve('acc_xxx', '...', { inviter: 'wxid_a', message_id: '...',
 PUT /v1/accounts/{account_id}/chats/{chat_id}/muted
 ```
 
-对一个群或一个好友开关消息免打扰。
+为一个群或一个好友开启或关闭消息免打扰。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `chat_id` | 路径 | string | 是 | 群 ID 或好友 wxid |
-| `enabled` | 请求体 | boolean | 是 | true 免打扰，false 恢复提醒 |
+| `enabled` | 请求体 | boolean | 是 | true 开启免打扰，false 恢复消息提醒 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1338,7 +1338,7 @@ await wx.chat.muted('acc_xxx', '...', { enabled: true })
 PUT /v1/accounts/{account_id}/chats/{chat_id}/pinned
 ```
 
-把一个群或一个好友的会话置顶，或取消置顶。
+将一个群或一个好友的会话置顶，或取消置顶。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1367,14 +1367,14 @@ await wx.chat.pinned('acc_xxx', '...', { enabled: true })
 POST /v1/accounts/{account_id}/messages/text
 ```
 
-发一条文字消息。群里可以 @人。
+发送一条文字消息。在群里发送时可以 @ 群成员。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
 | `content` | 请求体 | string | 是 | 消息正文 |
-| `mentions` | 请求体 | array | 否 | 要 @ 的 wxid，只在群里有意义 |
+| `mentions` | 请求体 | array | 否 | 要 @ 的成员 wxid，仅在群聊中有效 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1394,15 +1394,15 @@ await wx.message.text('acc_xxx', { to: 'filehelper', content: '你好' })
 POST /v1/accounts/{account_id}/messages/image
 ```
 
-发一张图片。url 与 media_id 二选一，media_id 可以复用平台已存的文件。
+发送一张图片。url 和 media_id 二选一，使用 media_id 可以复用平台已保存的文件。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
-| `url` | 请求体 | string | 否 | 公网可下载的地址 |
-| `media_id` | 请求体 | string | 否 | 平台里已有的媒体 ID |
-| `use_cache` | 请求体 | boolean | 否 | 同一个 url 之前发过就直接转发，不重新上传。默认 true；地址没变但内容换了才需要传 false |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `url` | 请求体 | string | 否 | 可从公网下载的文件地址 |
+| `media_id` | 请求体 | string | 否 | 平台中已有文件的媒体 ID |
+| `use_cache` | 请求体 | boolean | 否 | 同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1422,19 +1422,17 @@ await wx.message.image('acc_xxx', { to: 'filehelper' })
 POST /v1/accounts/{account_id}/messages/video
 ```
 
-发一段视频。不填时长的话由平台估算，有些客户端会显示得不好看。
+发送一段视频。不填时长时由平台估算，部分客户端可能会显示异常。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
-| `url` | 请求体 | string | 否 | 公网可下载的地址 |
-| `media_id` | 请求体 | string | 否 | 平台里已有的媒体 ID |
-| `use_cache` | 请求体 | boolean | 否 | 同一个 url 之前发过就直接转发，不重新上传。默认 true；地址没变但内容换了才需要传 false |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `url` | 请求体 | string | 否 | 可从公网下载的文件地址 |
+| `media_id` | 请求体 | string | 否 | 平台中已有文件的媒体 ID |
+| `use_cache` | 请求体 | boolean | 否 | 同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false |
 | `duration` | 请求体 | integer | 否 | 时长（秒） |
-| `width` | 请求体 | integer | 否 | 画面宽，不传则动态里不带尺寸 |
-| `height` | 请求体 | integer | 否 | 画面高，不传则动态里不带尺寸 |
-| `thumbnail_url` | 请求体 | string | 否 | 封面图地址，公网可下载的一张图片 |
+| `thumbnail_url` | 请求体 | string | 否 | 封面图地址，需要是可从公网下载的图片 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1454,13 +1452,13 @@ await wx.message.video('acc_xxx', { to: 'filehelper' })
 POST /v1/accounts/{account_id}/messages/voice
 ```
 
-发一条语音。seconds 是时长，显示在气泡上。
+发送一条语音。seconds 是语音时长，会显示在聊天中的语音消息上。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
-| `url` | 请求体 | string | 是 | 公网可下载的音频地址 |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `url` | 请求体 | string | 是 | 可从公网下载的音频地址 |
 | `seconds` | 请求体 | integer | 否 | 时长（秒） |
 
 <details><summary>各语言怎么调</summary>
@@ -1481,15 +1479,15 @@ await wx.message.voice('acc_xxx', { to: 'filehelper', url: 'https://example.com/
 POST /v1/accounts/{account_id}/messages/file
 ```
 
-发一个文件。
+发送一个文件。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
-| `url` | 请求体 | string | 否 | 公网可下载的地址 |
-| `media_id` | 请求体 | string | 否 | 平台里已有的媒体 ID |
-| `use_cache` | 请求体 | boolean | 否 | 同一个 url 之前发过就直接转发，不重新上传。默认 true；地址没变但内容换了才需要传 false |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `url` | 请求体 | string | 否 | 可从公网下载的文件地址 |
+| `media_id` | 请求体 | string | 否 | 平台中已有文件的媒体 ID |
+| `use_cache` | 请求体 | boolean | 否 | 同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false |
 | `filename` | 请求体 | string | 否 | 对方看到的文件名 |
 
 <details><summary>各语言怎么调</summary>
@@ -1510,14 +1508,14 @@ await wx.message.file('acc_xxx', { to: 'filehelper' })
 POST /v1/accounts/{account_id}/messages/sticker
 ```
 
-转发一个动图表情。表情是引用不是上传：checksum 与 length 来自收到的那条表情消息。
+转发一个动图表情。表情通过引用发送，无需上传文件。checksum 和 length 取自收到的表情消息。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
-| `checksum` | 请求体 | string | 是 | 表情的校验值，来自收到的表情消息 |
-| `length` | 请求体 | integer | 是 | 表情的字节数，来自同一条消息 |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `checksum` | 请求体 | string | 是 | 表情的校验值，取自收到的表情消息 |
+| `length` | 请求体 | integer | 是 | 表情的字节数，取自同一条表情消息 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1537,12 +1535,12 @@ await wx.message.sticker('acc_xxx', { to: 'filehelper', checksum: '...', length:
 POST /v1/accounts/{account_id}/messages/link
 ```
 
-发一张可点击的链接卡片。
+发送一张可点击的链接卡片。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
 | `title` | 请求体 | string | 是 | 卡片标题 |
 | `description` | 请求体 | string | 否 | 卡片摘要 |
 | `url` | 请求体 | string | 是 | 点击后打开的地址 |
@@ -1567,17 +1565,17 @@ await wx.message.link('acc_xxx', { to: 'filehelper', title: '标题', url: 'http
 POST /v1/accounts/{account_id}/messages/miniapp
 ```
 
-发一张小程序卡片。需要小程序自己的标识。
+发送一张小程序卡片。需要提供小程序的标识。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
 | `app_id` | 请求体 | string | 是 | 小程序的公开标识 |
 | `username` | 请求体 | string | 是 | 小程序的原始 ID |
 | `title` | 请求体 | string | 是 | 卡片标题 |
 | `description` | 请求体 | string | 否 | 卡片摘要 |
-| `path` | 请求体 | string | 否 | 打开的页面路径 |
+| `path` | 请求体 | string | 否 | 点击后打开的小程序页面路径 |
 | `thumb_url` | 请求体 | string | 否 | 封面图地址 |
 | `source_name` | 请求体 | string | 否 | 来源名称 |
 
@@ -1599,12 +1597,12 @@ await wx.message.miniapp('acc_xxx', { to: 'filehelper', app_id: '...', username:
 POST /v1/accounts/{account_id}/messages/forward
 ```
 
-把收到过的一条消息原样转给别人。
+将收到过的一条消息原样转发给其他人。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `to` | 请求体 | string | 是 | 接收者：wxid、群 ID，或 filehelper（自己的文件传输助手） |
+| `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
 | `message_id` | 请求体 | string | 是 | 要转发的消息 ID |
 
 <details><summary>各语言怎么调</summary>
@@ -1625,7 +1623,7 @@ await wx.message.forward('acc_xxx', { to: 'filehelper', message_id: '...' })
 POST /v1/accounts/{account_id}/messages/{message_id}/recall
 ```
 
-撤回自己发出的一条消息。微信只允许发出后约两分钟内撤回，超时会被拒绝。
+撤回自己发出的一条消息。微信只允许在发出后约两分钟内撤回，超过时间会被拒绝。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1650,12 +1648,12 @@ await wx.message.recall('acc_xxx', '...')
 GET /v1/accounts/{account_id}/messages
 ```
 
-读平台保存的消息记录，可按会话筛选。
+查询平台保存的消息记录，可以按会话筛选。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `peer` | 查询串 | string | 否 | 只看与某个 wxid 或群的会话 |
+| `peer` | 查询串 | string | 否 | 只返回与某个 wxid 或群的会话中的消息 |
 | `cursor` | 查询串 | string | 否 | 上一页返回的 next_cursor，首页留空 |
 | `limit` | 查询串 | integer | 否 | 每页条数，最多 200，超过按 200 处理 |
 
@@ -1677,7 +1675,7 @@ await wx.message.history('acc_xxx')
 POST /v1/accounts/{account_id}/messages/sync
 ```
 
-主动拉取这个实例收到的消息，内容和 Webhook 推的完全一样。没配 Webhook、Webhook 断过、或者服务重启过，用它把这段时间的消息补回来。cursor 留空从最早还留着的消息开始（大约一天），之后每次带上一次返回的 next_cursor；has_more 为 true 说明还没拉完，立刻再调一次。没有新消息时 next_cursor 原样返回，游标不动。拉到的消息不入库、不触发 Webhook，重复拉不会有副作用。
+主动拉取这个实例收到的消息，内容与 Webhook 推送的完全相同。如果没有配置 Webhook、Webhook 中断过，或者服务重启过，可以用它补回这段时间的消息。cursor 留空时，从目前仍保留的最早一条消息开始返回（大约可追溯一天）。之后每次调用都传入上一次返回的 next_cursor。has_more 为 true 表示还没有拉取完，请立即再调用一次。没有新消息时，返回的 next_cursor 与传入的相同，游标不会前进。拉取到的消息不会写入数据库，也不会触发 Webhook，重复拉取没有副作用。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1702,7 +1700,7 @@ await wx.message.sync('acc_xxx')
 GET /v1/accounts/{account_id}/messages/{message_id}
 ```
 
-读一条消息。
+查询一条消息。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1727,9 +1725,9 @@ await wx.message.get('acc_xxx', '...')
 GET /v1/accounts/{account_id}/favorites
 ```
 
-列出这个实例收藏的内容。cursor 留空从头读，返回的 next_cursor 为空表示到底。
+列出这个实例收藏的内容。cursor 留空时从第一页开始，返回的 next_cursor 为空表示已经到最后一页。
 
-> **建议缓存**：收藏只在你自己收藏或删除时才变，取一次存起来，不要轮询。
+> **建议缓存**：收藏只在你自己新增或删除收藏时才会变化。获取一次并保存，不要轮询；在你新增或删除收藏后再重新获取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1754,14 +1752,14 @@ await wx.favorite.list('acc_xxx')
 GET /v1/accounts/{account_id}/favorites/{fav_id}
 ```
 
-读一条收藏的完整内容。内容是微信自己的 XML，不同类型结构不同，原样返回。
+查询一条收藏的完整内容。内容为微信原始的 XML，平台原样返回，不同类型的收藏结构不同。
 
-> **建议缓存**：一条收藏的内容不会变，按 fav_id 存起来，取过就不用再取。
+> **建议缓存**：收藏的内容不会变化。按 fav_id 保存，获取过一次就不需要再获取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `fav_id` | 路径 | integer | 是 | 收藏 ID，来自收藏列表 |
+| `fav_id` | 路径 | integer | 是 | 收藏 ID，从「收藏列表」获取 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1781,7 +1779,7 @@ await wx.favorite.get('acc_xxx', '...')
 DELETE /v1/accounts/{account_id}/favorites/{fav_id}
 ```
 
-删掉一条收藏。
+删除一条收藏。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1809,13 +1807,13 @@ await wx.favorite.delete('acc_xxx', '...')
 POST /v1/accounts/{account_id}/media/upload
 ```
 
-把文件直接传上来，换一个 media_id，之后发图片、视频、语音、文件都可以只给这个 ID。适合文件在你自己机器上、没有公网地址可给的情况 —— 比如程序刚生成的一张图。用 multipart/form-data 提交，文件放在 file 字段里，最大 20 MB。第一次发送时这个文件才真正上传到微信，之后再用同一个 ID 发就不再重传了。没有发送过的上传保留 24 小时。
+直接上传文件，获取一个 media_id。之后发送图片、视频、语音或文件时，只需传入这个 ID。适用于文件在你自己的机器上、没有公网地址的情况，比如程序刚生成的一张图片。请用 multipart/form-data 提交，文件放在 file 字段中，最大 20 MB。文件在第一次发送时才会真正上传到微信，之后用同一个 ID 发送不会重复上传。上传后一直没有发送过的文件保留 24 小时。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `file` | 请求体 | file | 是 | 要上传的文件，multipart/form-data |
-| `kind` | 请求体 | string | 否 | 这个文件打算当什么发，不填按类型自动判断，可选值：`image` / `video` / `voice` / `file` |
+| `kind` | 请求体 | string | 否 | 这个文件将作为哪种消息发送，不填则根据文件类型自动判断，可选值：`image` / `video` / `voice` / `file` |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1835,9 +1833,9 @@ await wx.media.upload('acc_xxx', { file: '...' })
 POST /v1/accounts/{account_id}/media/download
 ```
 
-取一条消息里的图片、视频、文件或语音，返回一个限时下载地址。
+获取一条消息中的图片、视频、文件或语音，返回一个限时有效的下载地址。
 
-> **建议缓存**：下载地址是限时的，文件拿到后存到你自己那边，不要每次展示都重新下载。平台这边下载的文件总量超过上限时会清掉最早的一半，别拿它当长期存储。
+> **建议缓存**：下载地址有时效。拿到文件后请保存到你自己的存储中，不要每次展示时都重新下载。平台上已下载文件的总量超过上限时，会清除最早的一半，请不要把平台当作长期存储。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1862,12 +1860,12 @@ await wx.media.fromMessage('acc_xxx', { message_id: '...' })
 POST /v1/accounts/{account_id}/media/cached
 ```
 
-问一个地址平台是否已经发过。发过就能直接转发，不用重新上传，也不算流量 —— 在你把文件准备好挂到公网之前先问一句，省的就是这一趟。
+查询平台是否已经发送过某个地址的文件。发送过的文件可以直接复用，不需要重新上传，也不计流量。建议在把文件放到公网之前先调用这个接口。如果平台已经发送过，就不必再把文件放到公网。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `url` | 请求体 | string | 是 | 要发的那个地址，和发送时填的一模一样才算命中 |
+| `url` | 请求体 | string | 是 | 要发送的文件地址，必须与发送时填写的地址完全一致才算命中 |
 | `kind` | 请求体 | string | 是 | image、video 或 file |
 
 <details><summary>各语言怎么调</summary>
@@ -1888,7 +1886,7 @@ await wx.media.cached('acc_xxx', { url: 'https://example.com/a.jpg', kind: 'imag
 GET /v1/accounts/{account_id}/media/{media_id}
 ```
 
-为已经下载过的文件换一个新的限时地址。
+为已经下载过的文件重新生成一个限时有效的下载地址。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1913,13 +1911,13 @@ await wx.media.get('acc_xxx', '...')
 POST /v1/accounts/{account_id}/moments/{moment_id}/media/download
 ```
 
-取一条朋友圈动态里的第 N 张图，或它的视频。
+获取一条朋友圈动态中的第 N 张图片，或动态中的视频。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `moment_id` | 路径 | string | 是 | 动态 ID |
-| `index` | 请求体 | integer | 否 | 第几张图，从 0 开始；视频动态忽略这个值 |
+| `index` | 请求体 | integer | 否 | 图片序号，从 0 开始。视频动态会忽略这个值 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -1942,9 +1940,9 @@ await wx.media.moment('acc_xxx', '...')
 GET /v1/accounts/{account_id}/moments
 ```
 
-读自己看到的朋友圈时间线。
+查询这个实例能看到的朋友圈时间线。
 
-> **建议缓存**：每次都是现去微信取，不要写成定时刷新：刷得太勤属于异常行为。需要时再取，取到的动态自己存起来。
+> **建议缓存**：每次调用都会实时向微信请求，请不要定时刷新，刷新过于频繁会被视为异常行为。需要时再获取，并把获取到的动态保存在你自己的系统中。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1969,9 +1967,9 @@ await wx.moment.timeline('acc_xxx')
 GET /v1/accounts/{account_id}/moments/{moment_id}
 ```
 
-读一条朋友圈。列表会截断点赞与评论，这里是完整的。
+查询一条朋友圈的完整内容。列表接口中的点赞和评论会被截断，这个接口返回完整的点赞和评论。
 
-> **建议缓存**：一条动态的正文和图片不会变，取过就存起来；只有想看最新的点赞评论时才需要再取。
+> **建议缓存**：动态的正文和图片不会变化，获取后请保存。只有需要查看最新的点赞和评论时，才需要重新获取。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -1996,9 +1994,9 @@ await wx.moment.get('acc_xxx', '...')
 GET /v1/accounts/{account_id}/moments/user/{wxid}
 ```
 
-读某个联系人的朋友圈主页。
+查询某个联系人的朋友圈主页。
 
-> **建议缓存**：每次都是现去微信取，不要写成定时刷新：刷得太勤属于异常行为。需要时再取，取到的动态自己存起来。
+> **建议缓存**：每次调用都会实时向微信请求，请不要定时刷新，刷新过于频繁会被视为异常行为。需要时再获取，并把获取到的动态保存在你自己的系统中。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -2024,14 +2022,14 @@ await wx.moment.user('acc_xxx', '...')
 POST /v1/accounts/{account_id}/moments/text
 ```
 
-发一条纯文字朋友圈。
+发布一条纯文字朋友圈。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `content` | 请求体 | string | 是 | 正文 |
 | `mentions` | 请求体 | array | 否 | 要 @ 的 wxid |
-| `visibility` | 请求体 | object | 否 | 可见范围：mode 为 public / private / allow / deny，后两种要给 wxids 或 tag_ids |
+| `visibility` | 请求体 | object | 否 | 可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids |
 
 <details><summary>各语言怎么调</summary>
 
@@ -2051,14 +2049,14 @@ await wx.moment.postText('acc_xxx', { content: '今天天气不错' })
 POST /v1/accounts/{account_id}/moments/images
 ```
 
-发一条带图的朋友圈。
+发布一条带图片的朋友圈。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `content` | 请求体 | string | 否 | 正文 |
 | `images` | 请求体 | array | 是 | 图片列表 |
-| `visibility` | 请求体 | object | 否 | 可见范围：mode 为 public / private / allow / deny，后两种要给 wxids 或 tag_ids |
+| `visibility` | 请求体 | object | 否 | 可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids |
 
 <details><summary>各语言怎么调</summary>
 
@@ -2078,16 +2076,16 @@ await wx.moment.postImages('acc_xxx', { images: [{'url': 'https://example.com/a.
 POST /v1/accounts/{account_id}/moments/video
 ```
 
-发一条视频朋友圈。
+发布一条视频朋友圈。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `content` | 请求体 | string | 否 | 正文 |
-| `video` | 请求体 | object | 是 | 视频，给一个公网可下载的地址 |
+| `video` | 请求体 | object | 是 | 视频，需提供可从公网下载的地址 |
 | `cover` | 请求体 | object | 否 | 封面图 |
 | `duration` | 请求体 | integer | 否 | 时长（秒） |
-| `visibility` | 请求体 | object | 否 | 可见范围：mode 为 public / private / allow / deny，后两种要给 wxids 或 tag_ids |
+| `visibility` | 请求体 | object | 否 | 可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids |
 
 <details><summary>各语言怎么调</summary>
 
@@ -2107,13 +2105,13 @@ await wx.moment.postVideo('acc_xxx', { video: {'url': ''} })
 POST /v1/accounts/{account_id}/moments/forward
 ```
 
-把看到的一条动态原样再发一遍。
+将看到的一条动态原样重新发布一次。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `moment_id` | 请求体 | string | 是 | 要转发的动态 ID |
-| `visibility` | 请求体 | object | 否 | 可见范围：mode 为 public / private / allow / deny，后两种要给 wxids 或 tag_ids |
+| `visibility` | 请求体 | object | 否 | 可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids |
 
 <details><summary>各语言怎么调</summary>
 
@@ -2133,7 +2131,7 @@ await wx.moment.repost('acc_xxx', { moment_id: '...' })
 POST /v1/accounts/{account_id}/moments/{moment_id}/like
 ```
 
-给一条动态点赞。动态要先读过一次，24 小时内有效。
+给一条动态点赞。点赞前需要先通过朋友圈列表或详情接口读取过这条动态，读取后 24 小时内可以点赞。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -2190,7 +2188,7 @@ POST /v1/accounts/{account_id}/moments/{moment_id}/comments
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `moment_id` | 路径 | string | 是 | 动态 ID |
 | `content` | 请求体 | string | 是 | 评论内容，最多 500 字 |
-| `reply_to` | 请求体 | integer | 否 | 要回复的评论 ID，留空为一级评论 |
+| `reply_to` | 请求体 | integer | 否 | 要回复的评论 ID，留空表示直接评论这条动态 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -2210,7 +2208,7 @@ await wx.moment.comment('acc_xxx', '...', { content: '说得好' })
 DELETE /v1/accounts/{account_id}/moments/{moment_id}/comments/{comment_id}
 ```
 
-删掉自己发的一条评论。
+删除自己发表的一条评论。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -2236,7 +2234,7 @@ await wx.moment.deleteComment('acc_xxx', '...', '...')
 DELETE /v1/accounts/{account_id}/moments/{moment_id}
 ```
 
-删掉自己发的一条朋友圈。
+删除自己发布的一条朋友圈。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -2261,13 +2259,13 @@ await wx.moment.delete('acc_xxx', '...')
 PUT /v1/accounts/{account_id}/moments/{moment_id}/privacy
 ```
 
-把自己的一条动态设为仅自己可见，或改回公开。
+将自己的一条动态设为仅自己可见，或恢复为公开。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `moment_id` | 路径 | string | 是 | 动态 ID |
-| `private` | 请求体 | boolean | 是 | true 为仅自己可见 |
+| `private` | 请求体 | boolean | 是 | true 表示仅自己可见，false 表示公开 |
 
 <details><summary>各语言怎么调</summary>
 
@@ -2290,7 +2288,7 @@ await wx.moment.privacy('acc_xxx', '...', { private: true })
 GET /v1/me
 ```
 
-读这个 Key 属于谁，以及实例数量。
+查询当前 API Key 所属的用户，以及该用户的实例数量。
 
 <details><summary>各语言怎么调</summary>
 
@@ -2310,18 +2308,18 @@ await wx.platform.me()
 GET /v1/events
 ```
 
-读平台记录的事件，可按实例、类型、消息类型与时间筛选。没配 Webhook 时可以轮询这里。 轮询的写法：第一次可以用 since 从某个时间开始，之后每次带上一次返回的 next_cursor，从它后面接着读。这一页只要有事件就一定会给 next_cursor；没有新事件时它是空的，保留你手上那个别动。has_more 为 true 说明后面还有，马上接着读；否则歇几秒再来。处理到一半重启、游标没来得及存下，重读时会再拿到同几条，所以最好按 event_id 去重。
+查询平台记录的事件，可以按实例、事件类型、消息类型和时间筛选。没有配置 Webhook 时，可以轮询这个接口获取事件。 轮询方法：第一次调用可以用 since 指定起始时间。之后每次调用都传入上一次返回的 next_cursor，从该位置之后继续读取。只要本页有事件，就一定会返回 next_cursor。没有新事件时 next_cursor 为空，此时请继续使用你已保存的上一个 next_cursor。has_more 为 true 表示后面还有事件，请立即继续读取；否则请等待几秒后再轮询。如果处理过程中程序重启，而最新的游标还没来得及保存，重新读取时会再次拿到相同的几条事件，因此建议按 event_id 去重。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
-| `account_id` | 查询串 | string | 否 | 只看某个实例 |
-| `type` | 查询串 | string | 否 | 只看某种事件，可重复 |
-| `message_type` | 查询串 | string | 否 | 只看某种消息，如 text、image、file，可重复；非消息事件不会命中 |
-| `since` | 查询串 | string | 否 | 只看这个时间之后的，RFC3339 或 Unix 秒 |
-| `until` | 查询串 | string | 否 | 只看这个时间之前的，RFC3339 或 Unix 秒 |
-| `keyword` | 查询串 | string | 否 | 按事件内容搜索。需要同时给时间范围，且不超过 1 小时 |
-| `order` | 查询串 | string | 否 | oldest 从头逐条读（默认），newest 先看最近发生的，可选值：`oldest` / `newest` |
-| `cursor` | 查询串 | string | 否 | 上一次返回的 next_cursor，从它后面接着读；第一次留空。返回空的时候保留上一次的 |
+| `account_id` | 查询串 | string | 否 | 只返回某个实例的事件 |
+| `type` | 查询串 | string | 否 | 只返回某种类型的事件，参数可重复传入 |
+| `message_type` | 查询串 | string | 否 | 只返回某种消息类型的事件，如 text、image、file，参数可重复传入。设置后，非消息类事件不会出现在结果中 |
+| `since` | 查询串 | string | 否 | 只返回这个时间之后的事件，格式为 RFC3339 或 Unix 秒级时间戳 |
+| `until` | 查询串 | string | 否 | 只返回这个时间之前的事件，格式为 RFC3339 或 Unix 秒级时间戳 |
+| `keyword` | 查询串 | string | 否 | 按事件内容搜索。需要同时指定时间范围，且范围不超过 1 小时 |
+| `order` | 查询串 | string | 否 | oldest 按时间从早到晚返回（默认），newest 从最近发生的事件开始返回，可选值：`oldest` / `newest` |
+| `cursor` | 查询串 | string | 否 | 上一次返回的 next_cursor，从该位置之后继续读取。第一次调用时留空。如果返回的 next_cursor 为空，请继续使用上一次的值 |
 | `limit` | 查询串 | integer | 否 | 每页条数，最多 200，超过按 200 处理 |
 
 <details><summary>各语言怎么调</summary>
@@ -2342,7 +2340,7 @@ await wx.platform.events()
 GET /v1/accounts/{account_id}/stream
 ```
 
-以 SSE 长连接实时接收该实例的事件，内容与 Webhook 相同。
+通过 SSE 长连接实时接收该实例的事件，事件内容与 Webhook 推送的相同。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
