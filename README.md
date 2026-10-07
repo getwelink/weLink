@@ -299,15 +299,9 @@ Content-Type: application/json
 资料这类我不发。** 其余的基本都发 —— 自己的号想省点事、做个自动回复、接个
 AI、公司内部要个工具，一两句话说清楚就行，不用写方案，也不会有人追着你推销。
 
-<div align="center">
+<a href="https://qm.qq.com/q/SJ0idqZKou"><img src="assets/qq-contact.png" width="160" alt="QQ 联系二维码"></a>
 
-<a href="https://qm.qq.com/q/SJ0idqZKou"><img src="assets/qq-contact-card.png" width="280" alt="加 QQ 领授权码"></a>
-
-**[扫码或点击加我 QQ · 免费领授权码](https://qm.qq.com/q/SJ0idqZKou)**
-
-接入、用法、哪个接口该怎么调，也都可以直接问。
-
-</div>
+[QQ 联系](https://qm.qq.com/q/SJ0idqZKou) · 领取授权码、咨询接入和使用问题。
 
 ---
 
