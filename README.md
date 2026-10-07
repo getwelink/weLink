@@ -303,7 +303,9 @@ AI、公司内部要个工具，一两句话说清楚就行，不用写方案，
 
 <a href="https://qm.qq.com/q/SJ0idqZKou"><img src="assets/qq-contact-soft.png" width="280" alt="QQ 联系二维码"></a>
 
-[扫码或点击加我 QQ](https://qm.qq.com/q/SJ0idqZKou) · 接入咨询、使用帮助。
+QQ：**2824382313** · [点击添加](https://qm.qq.com/q/SJ0idqZKou)
+
+接入咨询、使用帮助。
 
 </div>
 
