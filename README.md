@@ -301,7 +301,7 @@ AI、公司内部要个工具，一两句话说清楚就行，不用写方案，
 
 <div align="center">
 
-<a href="https://qm.qq.com/q/SJ0idqZKou"><img src="assets/contact-qr.png" width="280" alt="加 QQ 领授权码"></a>
+<a href="https://qm.qq.com/q/SJ0idqZKou"><img src="assets/qq-contact-card.png" width="280" alt="加 QQ 领授权码"></a>
 
 **[扫码或点击加我 QQ · 免费领授权码](https://qm.qq.com/q/SJ0idqZKou)**
 
