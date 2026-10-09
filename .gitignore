@@ -10,3 +10,5 @@ node_modules/
 
 # 别把自己的 Key 传上来
 .env
+
+welink-login.png

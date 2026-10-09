@@ -1,0 +1,4501 @@
+{
+  "endpoints": [
+    {
+      "id": "account.create",
+      "group": "实例",
+      "name": "创建实例",
+      "method": "POST",
+      "path": "/accounts",
+      "description": "创建一个实例。每个实例占用一个额度，删除实例后额度归还。实例创建后需要扫码登录才会上线。",
+      "params": [
+        {
+          "name": "platform",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "ipad",
+            "mac"
+          ],
+          "example": "mac",
+          "description": "登录方式，推荐使用 mac，留空时默认使用 mac。选择 ipad 时，首次登录的 proxy 只能填网络助手的网络ID。并非每个部署都同时开通了两种方式，选择未开通的方式会直接报错，错误信息中会列出可选的方式"
+        },
+        {
+          "name": "name",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "客服 1 号",
+          "description": "备注名称，仅自己可见"
+        },
+        {
+          "name": "proxy",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "area:广东",
+          "description": "代理网络，必填，不能直连。有三种填法：地区代理，写成 area: 加省份名称，如 area:广东、area:北京，由平台分配该省份的代理，你无需自行准备；socks5 代理地址，如 socks5://user:pass@host:port；网络助手的网络ID，在一台手机上安装并打开网络助手即可看到，实例将通过这台手机的网络连接微信。填网络ID时，代理地址由平台自动获取。网络助手不在线时，请求会被拒绝。网络助手的凭据更新后，平台会在重新连接前自动获取新的代理地址"
+        },
+        {
+          "name": "webhook_url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "接收该实例事件的 Webhook 地址"
+        },
+        {
+          "name": "keep_history",
+          "in": "body",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "description": "是否保存收发的消息和推送记录，默认 true。设为 false 时，消息不写入数据库，推送记录在投递结束后立即删除。图片等文件仍可下载，撤回功能仍可使用；但无法查询历史消息，也无法转发文字和卡片消息"
+        }
+      ],
+      "example": {
+        "request": {
+          "name": "客服 1 号",
+          "platform": "mac",
+          "proxy": "area:广东"
+        },
+        "response": {
+          "account_id": "acc_xxx",
+          "status": "created"
+        }
+      },
+      "needs_account": false,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.list",
+      "group": "实例",
+      "name": "实例列表",
+      "method": "GET",
+      "path": "/accounts",
+      "description": "列出你的全部实例及其状态。",
+      "example": {},
+      "needs_account": false,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "account.get",
+      "group": "实例",
+      "name": "实例详情",
+      "method": "GET",
+      "path": "/accounts/{account_id}",
+      "description": "查询一个实例的详情。实例不在线时，reason 字段说明原因：manual 表示主动退出，kicked 表示因其他设备登录而被挤下线，relogin_required 表示需要重新扫码登录，recover_timeout 表示自动恢复超时，expired 表示授权到期。status 为 recovering 时，recovering 字段给出恢复方式和放弃恢复的时间。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {
+        "response": {
+          "account_id": "acc_xxx",
+          "reason": "连接中断，正在重新建立",
+          "recovering": {
+            "deadline_at": "2026-08-31T19:22:13+08:00",
+            "mode": "reopen"
+          },
+          "status": "recovering"
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "account.qrcode",
+      "group": "实例",
+      "name": "获取登录二维码",
+      "method": "POST",
+      "path": "/accounts/{account_id}/login/qrcode",
+      "description": "获取一张登录二维码，用手机微信扫码登录。expires_in 是二维码剩余的有效秒数，请以返回值为准，不要写死。二维码过期后重新获取即可。请求时可以带上 proxy 来更换代理网络。代理网络在建立登录会话时确定，所以只能在获取二维码时更换。实例掉线后重新获取二维码时也可以更换，登录过的实例会继续使用原来的设备。不传 proxy 则沿用原来的代理网络。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "proxy",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "area:广东",
+          "description": "要改用的代理网络，可以是地区代理、socks5 地址或网络助手的网络ID。不传则沿用实例现有的代理网络。iPad 实例首次登录只能使用网络助手。不能传空字符串，因为实例必须配置代理网络，不允许直连"
+        }
+      ],
+      "example": {
+        "response": {
+          "expires_in": 86,
+          "qrcode": "data:image/png;base64,..."
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.login_status",
+      "group": "实例",
+      "name": "登录状态",
+      "method": "GET",
+      "path": "/accounts/{account_id}/login/status",
+      "description": "查询扫码登录的进度，供轮询使用。状态取值：waiting（等待扫码）、scanned（已扫码，等待确认）、verify（等待验证）、online（已上线）、cancelled（已取消）、expired（已过期）。状态为 waiting 时还会返回 expires_in，表示二维码此刻剩余的有效秒数，可用于校准倒计时。返回 notice 时，请把它原样展示给用户。状态为 expired 时如果带有 notice，说明这次登录没有完成的原因，例如 iPad 登录需要人脸验证时，会提示改用 Mac 扫码登录。Mac 端扫码后需要通过一次新设备验证，平台会自动完成这一步，这期间状态会一直保持为 scanned。请提示用户耐心等待，避免用户误以为登录卡住而取消登录。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "account.reconnect",
+      "group": "实例",
+      "name": "重新连接",
+      "method": "POST",
+      "path": "/accounts/{account_id}/reconnect",
+      "description": "实例掉线后，尝试在不重新扫码的情况下恢复连接。无法恢复时，才需要重新扫码登录。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.logout",
+      "group": "实例",
+      "name": "退出登录",
+      "method": "POST",
+      "path": "/accounts/{account_id}/logout",
+      "description": "让实例下线。实例和额度都会保留，之后可以重新扫码上线。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.delete",
+      "group": "实例",
+      "name": "删除实例",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}",
+      "description": "删除实例并归还额度。历史消息不会立即清除。在线的实例不能直接删除，请先调用「退出登录」。如果直接删除，微信端的登录会话会继续保持，而平台已经无法再关闭它。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.profile",
+      "group": "实例",
+      "name": "实例资料",
+      "method": "GET",
+      "path": "/accounts/{account_id}/profile",
+      "description": "查询这个实例自己的昵称、头像、地区等资料。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "资料很少变化，登录成功后获取一次并保存即可。平时需要 wxid、昵称、头像时，请读取「实例详情」中的 profile 字段。该字段来自平台已保存的数据，不会向微信发起请求。"
+    },
+    {
+      "id": "account.update_profile",
+      "group": "实例",
+      "name": "修改个人资料",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/profile",
+      "description": "修改昵称、签名、性别和地区。留空的字段会被清空，请把需要保留的字段一并传入。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "nickname",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "小林",
+          "description": "昵称"
+        },
+        {
+          "name": "signature",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "个性签名"
+        },
+        {
+          "name": "sex",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "0",
+            "1",
+            "2"
+          ],
+          "example": 1,
+          "description": "1 男，2 女，0 不显示"
+        },
+        {
+          "name": "country",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "CN",
+          "description": "国家"
+        },
+        {
+          "name": "province",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "浙江",
+          "description": "省"
+        },
+        {
+          "name": "city",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "杭州",
+          "description": "市"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.set_avatar",
+      "group": "实例",
+      "name": "修改头像",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/profile/avatar",
+      "description": "修改头像。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://example.com/a.jpg",
+          "description": "公网可下载的图片地址"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.qrcode_self",
+      "group": "实例",
+      "name": "我的二维码",
+      "method": "GET",
+      "path": "/accounts/{account_id}/profile/qrcode",
+      "description": "获取这个实例自己的名片二维码。返回 data URL，可直接用作 img 标签的 src。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "名片二维码基本不会变化。获取一次后保存为图片重复使用，不要每次展示时都重新获取。"
+    },
+    {
+      "id": "account.privacy",
+      "group": "实例",
+      "name": "隐私设置",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/privacy",
+      "description": "开启或关闭一项隐私设置。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "option",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "need_confirm_to_add",
+            "findable_by_phone",
+            "findable_by_alias",
+            "recommend_contacts",
+            "strangers_see_ten",
+            "visible_days"
+          ],
+          "example": "need_confirm_to_add",
+          "description": "need_confirm_to_add：加我为好友时需要验证；findable_by_phone：可以通过手机号搜到我；findable_by_alias：可以通过微信号搜到我；recommend_contacts：向我推荐通讯录好友；strangers_see_ten：允许陌生人查看十条朋友圈；visible_days：朋友圈只展示最近一段时间的内容"
+        },
+        {
+          "name": "enabled",
+          "in": "body",
+          "type": "boolean",
+          "required": true,
+          "example": true,
+          "description": "true 开启，false 关闭"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.devices",
+      "group": "实例",
+      "name": "已登录设备",
+      "method": "GET",
+      "path": "/accounts/{account_id}/devices",
+      "description": "列出这个微信号登录过的设备，其中包括本平台。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "account.device_signout",
+      "group": "实例",
+      "name": "下线某个设备",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/devices/{device_id}",
+      "description": "让某个已登录的设备强制下线。注意不要把本平台自己也下线。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "device_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "设备 ID，从「已登录设备」接口获取"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.history",
+      "group": "实例",
+      "name": "消息保存设置",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/history",
+      "description": "设置这个实例是否保存收发的消息和推送记录。关闭后，新收发的消息不写入数据库，Webhook 推送记录在投递成功或放弃重试后立即删除。图片、语音、视频、文件仍然可以下载，自己发的消息仍然可以撤回，重复的推送仍然会去重。但无法查询历史消息，也无法转发文字和卡片消息。事件仍然会保存。关闭前已保存的消息不会立即删除，会按原来的保存期限自动清理。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "keep",
+          "in": "body",
+          "type": "boolean",
+          "required": true,
+          "example": false,
+          "description": "true 保存，false 不保存"
+        }
+      ],
+      "example": {
+        "request": {
+          "keep": false
+        },
+        "response": {
+          "account_id": "acc_xxx",
+          "keep_history": false
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "account.webhook",
+      "group": "实例",
+      "name": "设置 Webhook",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/webhook",
+      "description": "设置接收该实例事件的 Webhook 地址。每次推送都带有签名，可以用 secret 校验。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://example.com/wechat/hook",
+          "description": "接收事件的地址"
+        },
+        {
+          "name": "secret",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "签名密钥，留空则保持不变"
+        },
+        {
+          "name": "events",
+          "in": "body",
+          "type": "array",
+          "required": false,
+          "example": [],
+          "description": "只推送这些类型的事件，留空则推送全部事件"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "contact.ids",
+      "group": "联系人",
+      "name": "通讯录列表",
+      "method": "GET",
+      "path": "/accounts/{account_id}/contacts",
+      "description": "列出通讯录中的全部条目，不做任何筛选，只返回标识：好友为 wxid，群 ID 以 @chatroom 结尾，公众号以 gh_ 开头。需要资料时，再用「联系人详情」按需查询。数据直接从微信获取，实例需要在线。每页条数由微信决定。翻页时把 next_cursor 原样传回，next_cursor 为空表示已经到最后一页。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一页返回的 next_cursor，首页留空"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "登录成功后拉一次完整列表，保存在你自己的系统中，之后根据事件更新：收到 friend.added 时添加新好友，收到 contact.updated 时更新联系人资料，收到 contact.deleted 时移除联系人。不要定时整份重拉：每次调用都会从微信拉取完整列表，联系人多时耗时长、开销大，频繁拉取还会增加被微信风控的概率。"
+    },
+    {
+      "id": "contact.batch",
+      "group": "联系人",
+      "name": "批量取详情",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/batch",
+      "description": "按 wxid 批量查询联系人资料。它和「联系人详情」调用的是微信的两个不同接口，一次查询很多人时，更适合用这个接口。\n\n对个人好友，还会返回加好友的时间和方式：added_at、added_ts 是添加时间；add_source 是微信记录的添加方式编号，add_source_text 是它的中文说明，比如「扫一扫」「群聊」「搜索手机号」「名片分享」。含义还没有确认的编号只返回 add_source，不返回中文说明。通过群聊加的好友，add_source_group 是来源群的 ID。微信没有记录的项不返回。群和公众号不返回这几个字段。\n\n所有联系人还会返回：avatar_large 高清头像（avatar 是小图）；pinyin 昵称和备注的拼音，全拼小写、首字母大写，可以用来排序和搜索；phones 是在微信备注里给这个人填写的电话号码。没有的项不返回。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxids",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_example"
+          ],
+          "description": "要查询的 wxid 列表"
+        }
+      ],
+      "example": {
+        "response": {
+          "items": [
+            {
+              "add_source": 14,
+              "add_source_group": "12345678901@chatroom",
+              "add_source_text": "群聊",
+              "added_at": "2024-03-12T10:20:30+08:00",
+              "added_ts": 1710210030,
+              "avatar": "https://wx.qlogo.cn/mmhead/…/132",
+              "avatar_large": "https://wx.qlogo.cn/mmhead/…/0",
+              "display_name": "小王",
+              "nickname": "小王",
+              "phones": [
+                "13800000000"
+              ],
+              "pinyin": {
+                "nickname": "xiaowang",
+                "nickname_initials": "XW"
+              },
+              "type": "friend",
+              "wxid": "wxid_example"
+            }
+          ]
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "按 wxid 保存查到的资料，收到 contact.updated 事件时再更新对应联系人的资料。不要每收到一条消息就查询一次发送人的资料。"
+    },
+    {
+      "id": "contact.detail",
+      "group": "联系人",
+      "name": "联系人详情",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/detail",
+      "description": "查询联系人的完整资料，包括昵称、备注、微信号、头像、性别、地区、签名，以及该联系人的标签。标签在 label_ids 字段中，对应「标签列表」里的 ID；联系人没有标签时不返回这个字段。个人好友还会返回加好友的方式 add_source 和 add_source_text，通过群聊加的好友还有来源群 add_source_group；加好友的时间只有「批量取详情」能查到，这里不返回。高清头像 avatar_large、拼音 pinyin、备注电话 phones 和「批量取详情」一样返回。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxids",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "要查询的 wxid，一次最多 50 个"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "按 wxid 保存查到的资料，收到 contact.updated 事件时再更新对应联系人的资料。不要每收到一条消息就查询一次发送人的资料。"
+    },
+    {
+      "id": "contact.check",
+      "group": "联系人",
+      "name": "检测好友关系",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/check",
+      "description": "检测这些人是否仍是你的好友。注意：微信对这个操作限制很严，一次检测的人数多或检测频繁，都可能导致实例被限制。一次最多检测 20 个，请按需使用。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxids",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "要检测的 wxid，一次最多 20 个"
+        }
+      ],
+      "example": {
+        "response": {
+          "items": [
+            {
+              "note": "正常",
+              "state": "ok",
+              "wxid": "wxid_a"
+            }
+          ]
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "保存检测结果，同一个人在短时间内不要重复检测。"
+    },
+    {
+      "id": "contact.external",
+      "group": "联系人",
+      "name": "企微联系人",
+      "method": "GET",
+      "path": "/accounts/{account_id}/contacts/external",
+      "description": "查询企业微信的外部联系人。这些联系人不在普通通讯录中，「通讯录列表」接口查不到他们。本接口返回平台已保存的数据，使用前请先调用一次「同步企微联系人」。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "contact.external_sync",
+      "group": "联系人",
+      "name": "同步企微联系人",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/external/sync",
+      "description": "从微信重新拉取企业微信的外部联系人并保存到平台，返回拉取到的人数。没有头像的联系人会逐个补充获取头像，人数多时耗时较长，不建议频繁调用。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "contact.search",
+      "group": "联系人",
+      "name": "搜索用户",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/search",
+      "description": "按微信号或手机号搜索用户，返回可用于添加好友的 contact_token。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "keyword",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "wxid_example",
+          "description": "微信号或手机号"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。"
+    },
+    {
+      "id": "contact.add",
+      "group": "联系人",
+      "name": "添加好友",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/add",
+      "description": "用搜索得到的 contact_token 发起好友申请。**这个接口响应较慢**：微信需要 5～20 秒才返回结果，实测平均 9 秒，最慢 16 秒。客户端超时时间请至少设为 30 秒。请求超时后不要直接重发，因为请求很可能已经发送成功。需要重试时，请带上 Idempotency-Key。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "contact_token",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "搜索结果中的 contact_token"
+        },
+        {
+          "name": "greeting",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "你好",
+          "description": "发给对方的验证消息"
+        },
+        {
+          "name": "scene",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "申请来源，留空则使用默认值"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ],
+      "caution": "敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。"
+    },
+    {
+      "id": "contact.accept",
+      "group": "联系人",
+      "name": "通过好友申请",
+      "method": "POST",
+      "path": "/accounts/{account_id}/contacts/accept",
+      "description": "通过他人的好友申请。需要传入好友申请事件中的 friend_request_token。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "friend_request_token",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "好友申请事件中的 friend_request_token"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ],
+      "caution": "敏感接口，调用不当容易被微信限制甚至封号。短时间内大量通过好友申请同样会触发风控。不要在收到申请后立即批量自动通过，每次通过之间要留出间隔；申请数量多时，请分散到不同时间段处理。"
+    },
+    {
+      "id": "contact.remark",
+      "group": "联系人",
+      "name": "设置备注",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/contacts/{wxid}/remark",
+      "description": "修改一个联系人的备注名。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxid",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "wxid_example",
+          "description": "联系人的 wxid"
+        },
+        {
+          "name": "remark",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "老王",
+          "description": "新的备注名"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "contact.delete",
+      "group": "联系人",
+      "name": "删除好友",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/contacts/{wxid}",
+      "description": "将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。如需恢复，需要重新添加好友。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxid",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "要删除的 wxid"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "label.list",
+      "group": "联系人",
+      "name": "标签列表",
+      "method": "GET",
+      "path": "/accounts/{account_id}/labels",
+      "description": "列出这个实例的联系人标签。标签仅自己可见。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "标签只有在你自己修改时才会变化。获取一次并保存，之后在新建、改名或删除标签后，再更新你保存的数据。"
+    },
+    {
+      "id": "label.add",
+      "group": "联系人",
+      "name": "新建标签",
+      "method": "POST",
+      "path": "/accounts/{account_id}/labels",
+      "description": "新建一个联系人标签，返回该标签的 label_id。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "name",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "重点客户",
+          "description": "标签名"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "label.rename",
+      "group": "联系人",
+      "name": "改标签名",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/labels/{label_id}",
+      "description": "修改一个标签的名称。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "label_id",
+          "in": "path",
+          "type": "integer",
+          "required": true,
+          "example": 1,
+          "description": "标签 ID"
+        },
+        {
+          "name": "name",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "老客户",
+          "description": "新的标签名"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "label.delete",
+      "group": "联系人",
+      "name": "删除标签",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/labels/{label_id}",
+      "description": "删除一个标签。带有这个标签的联系人本身不受影响，只是不再带有该标签。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "label_id",
+          "in": "path",
+          "type": "integer",
+          "required": true,
+          "example": 1,
+          "description": "标签 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "contact.labels",
+      "group": "联系人",
+      "name": "设置联系人的标签",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/contacts/labels",
+      "description": "为指定的联系人设置标签。设置采用覆盖方式：这些联系人原有的标签会全部替换为本次传入的标签。label_ids 传空数组表示移除他们的全部标签。不在 wxids 中的联系人不受影响。给某些联系人设置一个标签，不会把这个标签从其他联系人身上移除。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxids",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "要设置标签的联系人 wxid，一次最多 50 个"
+        },
+        {
+          "name": "label_ids",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            1,
+            6
+          ],
+          "description": "设置后这些联系人拥有的全部标签 ID，对应「标签列表」里的 ID。传空数组表示不带任何标签"
+        }
+      ],
+      "example": {
+        "request": {
+          "label_ids": [
+            1,
+            6
+          ],
+          "wxids": [
+            "wxid_a"
+          ]
+        },
+        "response": {
+          "label_ids": [
+            1,
+            6
+          ],
+          "wxids": [
+            "wxid_a"
+          ]
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.create",
+      "group": "群",
+      "name": "创建群聊",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups",
+      "description": "邀请几位好友创建一个群聊，至少需要两个成员。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "members",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a",
+            "wxid_b"
+          ],
+          "description": "初始成员的 wxid"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "group.get",
+      "group": "群",
+      "name": "群详情",
+      "method": "GET",
+      "path": "/accounts/{account_id}/groups/{group_id}",
+      "description": "查询群的名称、公告、群主等资料。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "保存群资料，收到 group.renamed 事件时再重新获取。公告和群主很少变化，不要每收到一条群消息就查询一次。"
+    },
+    {
+      "id": "group.members",
+      "group": "群",
+      "name": "群成员",
+      "method": "GET",
+      "path": "/accounts/{account_id}/groups/{group_id}/members",
+      "description": "列出群成员。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "保存成员列表，之后根据 group.member_joined 和 group.member_left 事件增减成员。每次调用都会实时从微信拉取，大群耗时长、开销大，不要定时重新拉取整个列表。"
+    },
+    {
+      "id": "group.member_detail",
+      "group": "群",
+      "name": "群成员详情",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/{group_id}/members/detail",
+      "description": "查询指定群成员的完整资料，字段比「群成员」接口更全。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "members",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "要查询的 wxid"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "按 wxid 保存成员资料，不要每收到一条群消息就查询一次发言人的资料。"
+    },
+    {
+      "id": "group.invite",
+      "group": "群",
+      "name": "邀请入群",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/{group_id}/invite",
+      "description": "邀请好友入群。群人数较多时，微信会改为发送邀请链接。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "members",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "要邀请的 wxid"
+        },
+        {
+          "name": "reason",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "邀请说明"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "group.remove",
+      "group": "群",
+      "name": "移出群成员",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/{group_id}/members/remove",
+      "description": "将成员移出群聊。只有群主和管理员可以操作。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "members",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "要移出的 wxid"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.admins",
+      "group": "群",
+      "name": "群管理员",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/{group_id}/admins",
+      "description": "设置或取消群管理员，也可以转让群主。只有群主可以操作。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "action",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "grant",
+            "revoke",
+            "transfer"
+          ],
+          "example": "grant",
+          "description": "grant 设为管理员，revoke 取消管理员，transfer 转让群主（转让群主时 members 只能填一个人）"
+        },
+        {
+          "name": "members",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_a"
+          ],
+          "description": "目标成员的 wxid"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.rename",
+      "group": "群",
+      "name": "修改群名",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/groups/{group_id}/name",
+      "description": "修改群名称。需要有修改群名称的权限。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "name",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "项目群",
+          "description": "新的群名称"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "group.announcement",
+      "group": "群",
+      "name": "设置群公告",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/groups/{group_id}/announcement",
+      "description": "修改群公告。只有群主和管理员可以操作，修改后会向全群发送一条提示。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "content",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "今晚八点开会",
+          "description": "公告正文，留空表示清除"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.remark",
+      "group": "群",
+      "name": "设置群备注",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/groups/{group_id}/remark",
+      "description": "为群设置一个仅自己可见的备注名。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "remark",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "客户群 A",
+          "description": "备注名，留空表示清除"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.nickname",
+      "group": "群",
+      "name": "设置我的群昵称",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/groups/{group_id}/nickname",
+      "description": "修改自己在这个群里显示的昵称。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "nickname",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "小林-客服",
+          "description": "群内昵称"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.kept",
+      "group": "群",
+      "name": "保存到通讯录",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/groups/{group_id}/kept",
+      "description": "将群保存到通讯录，或取消保存。没有保存到通讯录的群，在聊天会话被删除后将无法再找到。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "enabled",
+          "in": "body",
+          "type": "boolean",
+          "required": true,
+          "example": true,
+          "description": "true 保存，false 取消"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.qrcode",
+      "group": "群",
+      "name": "群二维码",
+      "method": "GET",
+      "path": "/accounts/{account_id}/groups/{group_id}/qrcode",
+      "description": "获取群的邀请二维码。返回 data URL，可直接用作 img 标签的 src。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "群二维码 7 天内有效。获取一次后保存为图片，快过期时再重新获取。"
+    },
+    {
+      "id": "group.join",
+      "group": "群",
+      "name": "通过链接进群",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/join",
+      "description": "通过收到的群邀请链接加入群聊。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://support.weixin.qq.com/...",
+          "description": "邀请链接"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "group.preview",
+      "group": "群",
+      "name": "查看群邀请",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/preview",
+      "description": "查看群邀请链接对应的群信息，不会加入该群。usable 为 false 时，notice 字段说明原因，比如链接已过期。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://weixin.qq.com/g/xxxx",
+          "description": "邀请链接"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "group.approve",
+      "group": "群",
+      "name": "同意入群邀请",
+      "method": "POST",
+      "path": "/accounts/{account_id}/groups/{group_id}/approve",
+      "description": "群成员邀请他人入群后，群主用这个接口同意邀请。inviter、message_id、ticket、members 四个参数都来自这条邀请事件。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "group_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID"
+        },
+        {
+          "name": "inviter",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "wxid_a",
+          "description": "邀请人的 wxid"
+        },
+        {
+          "name": "message_id",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "邀请事件中的消息 ID"
+        },
+        {
+          "name": "ticket",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "邀请事件中的凭据"
+        },
+        {
+          "name": "members",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            "wxid_b"
+          ],
+          "description": "被邀请人的 wxid"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "chat.muted",
+      "group": "群",
+      "name": "消息免打扰",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/chats/{chat_id}/muted",
+      "description": "为一个群或一个好友开启或关闭消息免打扰。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "chat_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID 或好友 wxid"
+        },
+        {
+          "name": "enabled",
+          "in": "body",
+          "type": "boolean",
+          "required": true,
+          "example": true,
+          "description": "true 开启免打扰，false 恢复消息提醒"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "chat.pinned",
+      "group": "群",
+      "name": "聊天置顶",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/chats/{chat_id}/pinned",
+      "description": "将一个群或一个好友的会话置顶，或取消置顶。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "chat_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "群 ID 或好友 wxid"
+        },
+        {
+          "name": "enabled",
+          "in": "body",
+          "type": "boolean",
+          "required": true,
+          "example": true,
+          "description": "true 置顶，false 取消"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "message.text",
+      "group": "消息",
+      "name": "发文字",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/text",
+      "description": "发送一条文字消息。在群里发送时可以 @ 群成员。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "content",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "你好",
+          "description": "消息正文"
+        },
+        {
+          "name": "mentions",
+          "in": "body",
+          "type": "array",
+          "required": false,
+          "example": [],
+          "description": "要 @ 的成员 wxid，仅在群聊中有效"
+        }
+      ],
+      "example": {
+        "request": {
+          "content": "你好",
+          "to": "filehelper"
+        },
+        "response": {
+          "message_id": "msg_xxx",
+          "sent_at": "2026-08-30T12:00:00+08:00"
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.image",
+      "group": "消息",
+      "name": "发图片",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/image",
+      "description": "发送一张图片。url 和 media_id 二选一，使用 media_id 可以复用平台已保存的文件。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "https://example.com/a.jpg",
+          "description": "可从公网下载的文件地址"
+        },
+        {
+          "name": "media_id",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "平台中已有文件的媒体 ID"
+        },
+        {
+          "name": "use_cache",
+          "in": "body",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "description": "同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.video",
+      "group": "消息",
+      "name": "发视频",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/video",
+      "description": "发送一段视频。不填时长时由平台估算，部分客户端可能会显示异常。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "可从公网下载的文件地址"
+        },
+        {
+          "name": "media_id",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "平台中已有文件的媒体 ID"
+        },
+        {
+          "name": "use_cache",
+          "in": "body",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "description": "同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false"
+        },
+        {
+          "name": "duration",
+          "in": "body",
+          "type": "integer",
+          "required": false,
+          "example": 10,
+          "description": "时长（秒）"
+        },
+        {
+          "name": "thumbnail_url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "封面图地址，需要是可从公网下载的图片"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.voice",
+      "group": "消息",
+      "name": "发语音",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/voice",
+      "description": "发送一条语音。seconds 是语音时长，会显示在聊天中的语音消息上。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://example.com/a.silk",
+          "description": "可从公网下载的音频地址"
+        },
+        {
+          "name": "seconds",
+          "in": "body",
+          "type": "integer",
+          "required": false,
+          "example": 3,
+          "description": "时长（秒）"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.file",
+      "group": "消息",
+      "name": "发文件",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/file",
+      "description": "发送一个文件。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "可从公网下载的文件地址"
+        },
+        {
+          "name": "media_id",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "平台中已有文件的媒体 ID"
+        },
+        {
+          "name": "use_cache",
+          "in": "body",
+          "type": "boolean",
+          "required": false,
+          "example": true,
+          "description": "同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false"
+        },
+        {
+          "name": "filename",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "报告.pdf",
+          "description": "对方看到的文件名"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.sticker",
+      "group": "消息",
+      "name": "发动图表情",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/sticker",
+      "description": "转发一个动图表情。表情通过引用发送，无需上传文件。checksum 和 length 取自收到的表情消息。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "checksum",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "表情的校验值，取自收到的表情消息"
+        },
+        {
+          "name": "length",
+          "in": "body",
+          "type": "integer",
+          "required": true,
+          "example": 0,
+          "description": "表情的字节数，取自同一条表情消息"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.link",
+      "group": "消息",
+      "name": "发链接卡片",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/link",
+      "description": "发送一张可点击的链接卡片。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "title",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "标题",
+          "description": "卡片标题"
+        },
+        {
+          "name": "description",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "摘要",
+          "description": "卡片摘要"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://example.com",
+          "description": "点击后打开的地址"
+        },
+        {
+          "name": "thumb_url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "封面图地址"
+        },
+        {
+          "name": "source_name",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "来源名称"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.miniapp",
+      "group": "消息",
+      "name": "发小程序卡片",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/miniapp",
+      "description": "发送一张小程序卡片。需要提供小程序的标识。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "app_id",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "小程序的公开标识"
+        },
+        {
+          "name": "username",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "小程序的原始 ID"
+        },
+        {
+          "name": "title",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "标题",
+          "description": "卡片标题"
+        },
+        {
+          "name": "description",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "卡片摘要"
+        },
+        {
+          "name": "path",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "pages/index.html",
+          "description": "点击后打开的小程序页面路径"
+        },
+        {
+          "name": "thumb_url",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "封面图地址"
+        },
+        {
+          "name": "source_name",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "来源名称"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.forward",
+      "group": "消息",
+      "name": "转发消息",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/forward",
+      "description": "将收到过的一条消息原样转发给其他人。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "to",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "filehelper",
+          "description": "接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）"
+        },
+        {
+          "name": "message_id",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "要转发的消息 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "message.recall",
+      "group": "消息",
+      "name": "撤回消息",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/{message_id}/recall",
+      "description": "撤回自己发出的一条消息。微信只允许在发出后约两分钟内撤回，超过时间会被拒绝。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "message_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "msg_xxx",
+          "description": "发送时返回的 message_id"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "message.history",
+      "group": "消息",
+      "name": "消息记录",
+      "method": "GET",
+      "path": "/accounts/{account_id}/messages",
+      "description": "查询平台保存的消息记录，可以按会话筛选。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "peer",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "只返回与某个 wxid 或群的会话中的消息"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一页返回的 next_cursor，首页留空"
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "type": "integer",
+          "required": false,
+          "example": 20,
+          "description": "每页条数，最多 200，超过按 200 处理"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "message.sync",
+      "group": "消息",
+      "name": "同步消息",
+      "method": "POST",
+      "path": "/accounts/{account_id}/messages/sync",
+      "description": "主动拉取这个实例收到的消息，内容与 Webhook 推送的完全相同。如果没有配置 Webhook、Webhook 中断过，或者服务重启过，可以用它补回这段时间的消息。cursor 留空时，从目前仍保留的最早一条消息开始返回（大约可追溯一天）。之后每次调用都传入上一次返回的 next_cursor。has_more 为 true 表示还没有拉取完，请立即再调用一次。没有新消息时，返回的 next_cursor 与传入的相同，游标不会前进。拉取到的消息不会写入数据库，也不会触发 Webhook，重复拉取没有副作用。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "cursor",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一次返回的 next_cursor，第一次留空"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "message.get",
+      "group": "消息",
+      "name": "消息详情",
+      "method": "GET",
+      "path": "/accounts/{account_id}/messages/{message_id}",
+      "description": "查询一条消息。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "message_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "消息 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "favorite.list",
+      "group": "消息",
+      "name": "收藏列表",
+      "method": "GET",
+      "path": "/accounts/{account_id}/favorites",
+      "description": "列出这个实例收藏的内容。cursor 留空时从第一页开始，返回的 next_cursor 为空表示已经到最后一页。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一页返回的 next_cursor，首页留空"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "收藏只在你自己新增或删除收藏时才会变化。获取一次并保存，不要轮询；在你新增或删除收藏后再重新获取。"
+    },
+    {
+      "id": "favorite.get",
+      "group": "消息",
+      "name": "收藏详情",
+      "method": "GET",
+      "path": "/accounts/{account_id}/favorites/{fav_id}",
+      "description": "查询一条收藏的完整内容。内容为微信原始的 XML，平台原样返回，不同类型的收藏结构不同。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "fav_id",
+          "in": "path",
+          "type": "integer",
+          "required": true,
+          "example": 1,
+          "description": "收藏 ID，从「收藏列表」获取"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "收藏的内容不会变化。按 fav_id 保存，获取过一次就不需要再获取。"
+    },
+    {
+      "id": "favorite.delete",
+      "group": "消息",
+      "name": "删除收藏",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/favorites/{fav_id}",
+      "description": "删除一条收藏。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "fav_id",
+          "in": "path",
+          "type": "integer",
+          "required": true,
+          "example": 1,
+          "description": "收藏 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "media.upload",
+      "group": "媒体",
+      "name": "上传文件",
+      "method": "POST",
+      "path": "/accounts/{account_id}/media/upload",
+      "description": "直接上传文件，获取一个 media_id。之后发送图片、视频、语音或文件时，只需传入这个 ID。适用于文件在你自己的机器上、没有公网地址的情况，比如程序刚生成的一张图片。请用 multipart/form-data 提交，文件放在 file 字段中，最大 20 MB。文件在第一次发送时才会真正上传到微信，之后用同一个 ID 发送不会重复上传。上传后一直没有发送过的文件保留 24 小时。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "file",
+          "in": "body",
+          "type": "file",
+          "required": true,
+          "example": "",
+          "description": "要上传的文件，multipart/form-data"
+        },
+        {
+          "name": "kind",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "image",
+            "video",
+            "voice",
+            "file"
+          ],
+          "example": "image",
+          "description": "这个文件将作为哪种消息发送，不填则根据文件类型自动判断"
+        }
+      ],
+      "example": {
+        "response": {
+          "content_type": "image/png",
+          "media_id": "med_xxx",
+          "size": 20480,
+          "url": "https://api.example.com/files/..."
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "write"
+      ]
+    },
+    {
+      "id": "media.from_message",
+      "group": "媒体",
+      "name": "下载消息附件",
+      "method": "POST",
+      "path": "/accounts/{account_id}/media/download",
+      "description": "获取一条消息中的图片、视频、文件或语音，返回一个限时有效的下载地址。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "message_id",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "带附件的消息 ID"
+        }
+      ],
+      "example": {
+        "response": {
+          "content_type": "image/jpeg",
+          "media_id": "med_xxx",
+          "size": 183592,
+          "url": "https://api.example.com/files/..."
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "下载地址有时效。拿到文件后请保存到你自己的存储中，不要每次展示时都重新下载。平台上已下载文件的总量超过上限时，会清除最早的一半，请不要把平台当作长期存储。"
+    },
+    {
+      "id": "media.cached",
+      "group": "媒体",
+      "name": "查文件是否已缓存",
+      "method": "POST",
+      "path": "/accounts/{account_id}/media/cached",
+      "description": "查询平台是否已经发送过某个地址的文件。发送过的文件可以直接复用，不需要重新上传，也不计流量。建议在把文件放到公网之前先调用这个接口。如果平台已经发送过，就不必再把文件放到公网。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "url",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "https://example.com/a.jpg",
+          "description": "要发送的文件地址，必须与发送时填写的地址完全一致才算命中"
+        },
+        {
+          "name": "kind",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "image",
+          "description": "image、video 或 file"
+        }
+      ],
+      "example": {
+        "response": {
+          "cached": true,
+          "height": 320,
+          "kind": "image",
+          "media_id": "med_xxx",
+          "size": 7676,
+          "width": 480
+        }
+      },
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "media.get",
+      "group": "媒体",
+      "name": "重新取下载地址",
+      "method": "GET",
+      "path": "/accounts/{account_id}/media/{media_id}",
+      "description": "为已经下载过的文件重新生成一个限时有效的下载地址。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "media_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "媒体 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "media.moment",
+      "group": "媒体",
+      "name": "下载动态媒体",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/{moment_id}/media/download",
+      "description": "获取一条朋友圈动态中的第 N 张图片，或动态中的视频。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        },
+        {
+          "name": "index",
+          "in": "body",
+          "type": "integer",
+          "required": false,
+          "example": 0,
+          "description": "图片序号，从 0 开始。视频动态会忽略这个值"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "moment.timeline",
+      "group": "朋友圈",
+      "name": "我的朋友圈",
+      "method": "GET",
+      "path": "/accounts/{account_id}/moments",
+      "description": "查询这个实例能看到的朋友圈时间线。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一页返回的 next_cursor"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "每次调用都会实时向微信请求，请不要定时刷新，刷新过于频繁会被视为异常行为。需要时再获取，并把获取到的动态保存在你自己的系统中。"
+    },
+    {
+      "id": "moment.get",
+      "group": "朋友圈",
+      "name": "朋友圈详情",
+      "method": "GET",
+      "path": "/accounts/{account_id}/moments/{moment_id}",
+      "description": "查询一条朋友圈的完整内容。列表接口中的点赞和评论会被截断，这个接口返回完整的点赞和评论。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "朋友圈 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "动态的正文和图片不会变化，获取后请保存。只有需要查看最新的点赞和评论时，才需要重新获取。"
+    },
+    {
+      "id": "moment.user",
+      "group": "朋友圈",
+      "name": "某人的朋友圈",
+      "method": "GET",
+      "path": "/accounts/{account_id}/moments/user/{wxid}",
+      "description": "查询某个联系人的朋友圈主页。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "wxid",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "联系人的 wxid"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一页返回的 next_cursor"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "cache_advice": "每次调用都会实时向微信请求，请不要定时刷新，刷新过于频繁会被视为异常行为。需要时再获取，并把获取到的动态保存在你自己的系统中。"
+    },
+    {
+      "id": "moment.post_text",
+      "group": "朋友圈",
+      "name": "发文字动态",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/text",
+      "description": "发布一条纯文字朋友圈。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "content",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "今天天气不错",
+          "description": "正文"
+        },
+        {
+          "name": "mentions",
+          "in": "body",
+          "type": "array",
+          "required": false,
+          "example": [],
+          "description": "要 @ 的 wxid"
+        },
+        {
+          "name": "visibility",
+          "in": "body",
+          "type": "object",
+          "required": false,
+          "example": {
+            "mode": "public"
+          },
+          "description": "可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.post_images",
+      "group": "朋友圈",
+      "name": "发图片动态",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/images",
+      "description": "发布一条带图片的朋友圈。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "content",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "正文"
+        },
+        {
+          "name": "images",
+          "in": "body",
+          "type": "array",
+          "required": true,
+          "example": [
+            {
+              "url": "https://example.com/a.jpg"
+            }
+          ],
+          "description": "图片列表"
+        },
+        {
+          "name": "visibility",
+          "in": "body",
+          "type": "object",
+          "required": false,
+          "example": {
+            "mode": "public"
+          },
+          "description": "可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.post_video",
+      "group": "朋友圈",
+      "name": "发视频动态",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/video",
+      "description": "发布一条视频朋友圈。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "content",
+          "in": "body",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "正文"
+        },
+        {
+          "name": "video",
+          "in": "body",
+          "type": "object",
+          "required": true,
+          "example": {
+            "url": ""
+          },
+          "description": "视频，需提供可从公网下载的地址"
+        },
+        {
+          "name": "cover",
+          "in": "body",
+          "type": "object",
+          "required": false,
+          "example": {
+            "url": ""
+          },
+          "description": "封面图"
+        },
+        {
+          "name": "duration",
+          "in": "body",
+          "type": "integer",
+          "required": false,
+          "example": 10,
+          "description": "时长（秒）"
+        },
+        {
+          "name": "visibility",
+          "in": "body",
+          "type": "object",
+          "required": false,
+          "example": {
+            "mode": "public"
+          },
+          "description": "可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.repost",
+      "group": "朋友圈",
+      "name": "转发动态",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/forward",
+      "description": "将看到的一条动态原样重新发布一次。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "要转发的动态 ID"
+        },
+        {
+          "name": "visibility",
+          "in": "body",
+          "type": "object",
+          "required": false,
+          "example": {
+            "mode": "public"
+          },
+          "description": "可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.like",
+      "group": "朋友圈",
+      "name": "点赞",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/{moment_id}/like",
+      "description": "给一条动态点赞。点赞前需要先通过朋友圈列表或详情接口读取过这条动态，读取后 24 小时内可以点赞。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.unlike",
+      "group": "朋友圈",
+      "name": "取消赞",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/moments/{moment_id}/like",
+      "description": "取消对一条动态的赞。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.comment",
+      "group": "朋友圈",
+      "name": "评论",
+      "method": "POST",
+      "path": "/accounts/{account_id}/moments/{moment_id}/comments",
+      "description": "评论一条动态，或回复别人的评论。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        },
+        {
+          "name": "content",
+          "in": "body",
+          "type": "string",
+          "required": true,
+          "example": "说得好",
+          "description": "评论内容，最多 500 字"
+        },
+        {
+          "name": "reply_to",
+          "in": "body",
+          "type": "integer",
+          "required": false,
+          "example": 0,
+          "description": "要回复的评论 ID，留空表示直接评论这条动态"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.delete_comment",
+      "group": "朋友圈",
+      "name": "删除评论",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/moments/{moment_id}/comments/{comment_id}",
+      "description": "删除自己发表的一条评论。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        },
+        {
+          "name": "comment_id",
+          "in": "path",
+          "type": "integer",
+          "required": true,
+          "example": 0,
+          "description": "评论 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.delete",
+      "group": "朋友圈",
+      "name": "删除动态",
+      "method": "DELETE",
+      "path": "/accounts/{account_id}/moments/{moment_id}",
+      "description": "删除自己发布的一条朋友圈。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "moment.privacy",
+      "group": "朋友圈",
+      "name": "设为私密 / 公开",
+      "method": "PUT",
+      "path": "/accounts/{account_id}/moments/{moment_id}/privacy",
+      "description": "将自己的一条动态设为仅自己可见，或恢复为公开。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        },
+        {
+          "name": "moment_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "动态 ID"
+        },
+        {
+          "name": "private",
+          "in": "body",
+          "type": "boolean",
+          "required": true,
+          "example": true,
+          "description": "true 表示仅自己可见，false 表示公开"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "send"
+      ]
+    },
+    {
+      "id": "platform.me",
+      "group": "平台",
+      "name": "当前用户",
+      "method": "GET",
+      "path": "/me",
+      "description": "查询当前 API Key 所属的用户，以及该用户的实例数量。",
+      "example": {},
+      "needs_account": false,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "platform.events",
+      "group": "平台",
+      "name": "事件列表",
+      "method": "GET",
+      "path": "/events",
+      "description": "查询平台记录的事件，可以按实例、事件类型、消息类型和时间筛选。没有配置 Webhook 时，可以轮询这个接口获取事件。\n\n轮询方法：第一次调用可以用 since 指定起始时间。之后每次调用都传入上一次返回的 next_cursor，从该位置之后继续读取。只要本页有事件，就一定会返回 next_cursor。没有新事件时 next_cursor 为空，此时请继续使用你已保存的上一个 next_cursor。has_more 为 true 表示后面还有事件，请立即继续读取；否则请等待几秒后再轮询。如果处理过程中程序重启，而最新的游标还没来得及保存，重新读取时会再次拿到相同的几条事件，因此建议按 event_id 去重。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "只返回某个实例的事件"
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "message.received",
+          "description": "只返回某种类型的事件，参数可重复传入"
+        },
+        {
+          "name": "message_type",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "image",
+          "description": "只返回某种消息类型的事件，如 text、image、file，参数可重复传入。设置后，非消息类事件不会出现在结果中"
+        },
+        {
+          "name": "since",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "只返回这个时间之后的事件，格式为 RFC3339 或 Unix 秒级时间戳"
+        },
+        {
+          "name": "until",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "只返回这个时间之前的事件，格式为 RFC3339 或 Unix 秒级时间戳"
+        },
+        {
+          "name": "keyword",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "按事件内容搜索。需要同时指定时间范围，且范围不超过 1 小时"
+        },
+        {
+          "name": "order",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "oldest",
+            "newest"
+          ],
+          "example": "",
+          "description": "oldest 按时间从早到晚返回（默认），newest 从最近发生的事件开始返回"
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "type": "string",
+          "required": false,
+          "example": "",
+          "description": "上一次返回的 next_cursor，从该位置之后继续读取。第一次调用时留空。如果返回的 next_cursor 为空，请继续使用上一次的值"
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "type": "integer",
+          "required": false,
+          "example": 20,
+          "description": "每页条数，最多 200，超过按 200 处理"
+        }
+      ],
+      "example": {},
+      "needs_account": false,
+      "tags": [
+        "read"
+      ]
+    },
+    {
+      "id": "platform.stream",
+      "group": "平台",
+      "name": "事件流",
+      "method": "GET",
+      "path": "/accounts/{account_id}/stream",
+      "description": "通过 SSE 长连接实时接收该实例的事件，事件内容与 Webhook 推送的相同。",
+      "params": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "type": "string",
+          "required": true,
+          "example": "",
+          "description": "实例 ID，形如 acc_xxx"
+        }
+      ],
+      "example": {},
+      "needs_account": true,
+      "tags": [
+        "read"
+      ],
+      "streaming": true
+    }
+  ],
+  "events": {
+    "events": [
+      {
+        "type": "message.received",
+        "name": "收到消息",
+        "when": "收到别人发来的一条消息",
+        "same_as": "message"
+      },
+      {
+        "type": "message.sent",
+        "name": "自己发出的消息",
+        "when": "这个微信号在手机或其他设备上发出了消息，此时 self 为 true。通过本平台接口发送的消息不会推送这个事件，因为接口调用时已经同步返回了结果",
+        "same_as": "message"
+      },
+      {
+        "type": "message.revoked",
+        "name": "消息被撤回",
+        "when": "有人撤回了一条消息，此时 type 为 revoke",
+        "same_as": "message"
+      },
+      {
+        "type": "friend.request",
+        "name": "好友申请",
+        "when": "有人申请添加好友，此时 type 为 friend_request",
+        "same_as": "message"
+      },
+      {
+        "type": "friend.added",
+        "name": "新增好友",
+        "when": "对方通过了你的好友申请，或你通过了对方的好友申请",
+        "payload": {
+          "avatar": "https://…",
+          "nickname": "小明",
+          "wxid": "wxid_xxx"
+        }
+      },
+      {
+        "type": "contact.updated",
+        "name": "联系人变更",
+        "when": "联系人的昵称、备注、头像等资料发生变化。只有资料确实有变化时才推送；你自己通过接口修改的资料不会推送",
+        "payload": {
+          "alias": "xiaoming88",
+          "avatar": "https://…",
+          "city": "Wuxi",
+          "country": "CN",
+          "nickname": "小明",
+          "province": "Jiangsu",
+          "remark": "小明（同事）",
+          "sex": 1,
+          "signature": "个性签名",
+          "wxid": "wxid_xxx"
+        }
+      },
+      {
+        "type": "contact.deleted",
+        "name": "联系人删除",
+        "when": "对方删除了你，或你删除了对方。事件内容只保证包含 wxid",
+        "payload": {
+          "wxid": "wxid_xxx"
+        }
+      },
+      {
+        "type": "account.scanned",
+        "name": "已扫码",
+        "when": "扫码登录时，二维码已被手机扫描，但还没有在手机上确认登录",
+        "payload": {
+          "avatar": "https://…",
+          "nickname": "小美"
+        }
+      },
+      {
+        "type": "account.online",
+        "name": "实例上线",
+        "when": "扫码登录完成，或自动恢复连接成功",
+        "payload": {
+          "alias": "",
+          "avatar": "https://…",
+          "nickname": "小美",
+          "wxid": "wxid_xxx"
+        }
+      },
+      {
+        "type": "account.offline",
+        "name": "实例掉线",
+        "when": "实例不再可用。reason 是供程序判断的固定取值，reason_text 是对应的中文说明，可以直接展示给用户。cause 表示由哪一方判定下线：wechat 表示微信通知会话已结束，detail 是微信返回的原文；proxy 表示代理网络无法连接，请求没有到达微信；platform 表示由平台决定下线，原因包括主动退出、额度到期、恢复超时",
+        "payload": {
+          "cause": "wechat",
+          "detail": "当前账号于12:02在Mac设备上登录。若不是本人操作，你的登录密码可能已经泄漏，请及时改密。",
+          "reason": "relogin_required",
+          "reason_text": "微信要求重新扫码登录"
+        }
+      },
+      {
+        "type": "account.recovering",
+        "name": "正在自动恢复",
+        "when": "连接已断开，平台正在自动恢复，你无需进行任何操作。如果到 deadline_at 时仍未恢复，会转为 account.offline 事件",
+        "payload": {
+          "deadline_at": "2026-08-31T19:22:13+08:00",
+          "deadline_ts": 1788175333,
+          "mode": "full",
+          "reason": "微信已离线",
+          "reason_code": 52000
+        }
+      },
+      {
+        "type": "group.member_joined",
+        "name": "群成员加入",
+        "when": "有成员加入群聊",
+        "payload": {
+          "group_id": "…@chatroom",
+          "members": [
+            "wxid_xxx"
+          ]
+        }
+      },
+      {
+        "type": "group.member_left",
+        "name": "群成员退出",
+        "when": "有成员主动退出群聊，或被移出群聊",
+        "payload": {
+          "group_id": "…@chatroom",
+          "members": [
+            "wxid_xxx"
+          ]
+        }
+      },
+      {
+        "type": "group.renamed",
+        "name": "群名变更",
+        "when": "群名称被修改",
+        "payload": {
+          "group_id": "…@chatroom",
+          "name": "新群名"
+        }
+      },
+      {
+        "type": "group.invited",
+        "name": "被邀请进群",
+        "when": "这个微信号被邀请加入了一个群",
+        "payload": {
+          "group_id": "…@chatroom"
+        }
+      },
+      {
+        "type": "raw.unknown",
+        "name": "未识别的事件",
+        "when": "平台收到了无法识别的推送。正常情况下不会出现；如果出现，说明有新的推送类型需要平台适配"
+      }
+    ],
+    "headers": [
+      {
+        "name": "X-Orbit-Event",
+        "type": "string",
+        "note": "事件类型。无需解析 body 即可按类型分发处理"
+      },
+      {
+        "name": "X-Orbit-Delivery",
+        "type": "string",
+        "note": "本次投递的 ID，重试时保持不变"
+      },
+      {
+        "name": "X-Orbit-Timestamp",
+        "type": "integer",
+        "note": "发出时间，Unix 秒级时间戳"
+      },
+      {
+        "name": "X-Orbit-Attempt",
+        "type": "integer",
+        "note": "第几次投递尝试，首次为 1"
+      },
+      {
+        "name": "X-Orbit-Signature",
+        "type": "string",
+        "note": "sha256=HMAC-SHA256(密钥, 原始 body)，仅在设置了密钥时才有"
+      }
+    ],
+    "envelope": [
+      {
+        "name": "event_id",
+        "type": "string",
+        "note": "事件 ID。重试时 ID 保持不变，可用于幂等处理"
+      },
+      {
+        "name": "type",
+        "type": "string",
+        "note": "事件类型，见下表"
+      },
+      {
+        "name": "account_id",
+        "type": "string",
+        "note": "事件所属的实例 ID"
+      },
+      {
+        "name": "timestamp",
+        "type": "integer",
+        "note": "事件发生时间，Unix 秒级时间戳"
+      },
+      {
+        "name": "created_at",
+        "type": "string",
+        "note": "事件发生时间，ISO8601 格式，与 timestamp 是同一时刻"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "note": "事件内容，结构随 type 不同而不同"
+      }
+    ],
+    "message": {
+      "common": [
+        {
+          "name": "message_id",
+          "type": "string",
+          "note": "平台分配的消息 ID，下载附件、撤回消息时使用"
+        },
+        {
+          "name": "chat_id",
+          "type": "string",
+          "note": "会话 ID：私聊为对方的 wxid，群聊为群 ID"
+        },
+        {
+          "name": "is_group",
+          "type": "boolean",
+          "note": "是否为群消息"
+        },
+        {
+          "name": "from",
+          "type": "string",
+          "note": "发送方。群消息中为群 ID，发言的成员见 sender"
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "note": "接收方"
+        },
+        {
+          "name": "sender",
+          "type": "string",
+          "note": "消息的实际发送人。群消息中为发言成员的 wxid，私聊中与 from 相同。判断消息由谁发送时请使用 sender，不要使用 from"
+        },
+        {
+          "name": "self",
+          "type": "boolean",
+          "note": "是否为本实例的微信号自己发送的消息（在手机或其他设备上发送）"
+        },
+        {
+          "name": "type",
+          "type": "string",
+          "note": "消息类型，决定消息附带哪个对象"
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "note": "文字内容。非文字消息可能没有这个字段"
+        },
+        {
+          "name": "mentions",
+          "type": "array",
+          "note": "这条消息 @ 的成员，为 wxid 数组。只有群消息才有这个字段，没有 @ 任何人时不出现。请不要从 text 中提取昵称来判断，因为通过昵称无法确定是哪个人"
+        },
+        {
+          "name": "mentions_all",
+          "type": "boolean",
+          "note": "是否 @ 了所有人。这种情况下没有具体成员被 @，mentions 为空"
+        },
+        {
+          "name": "mentions_me",
+          "type": "boolean",
+          "note": "本实例是否在被 @ 的成员中。实现「有人 @ 我就回复」这类功能时，直接使用这个字段"
+        },
+        {
+          "name": "created_at / created_ts",
+          "type": "string / integer",
+          "note": "消息时间，分别为 ISO8601 字符串和 Unix 秒级时间戳"
+        }
+      ],
+      "kinds": [
+        {
+          "kind": "text",
+          "name": "文字"
+        },
+        {
+          "kind": "image",
+          "name": "图片",
+          "carries": "media"
+        },
+        {
+          "kind": "voice",
+          "name": "语音",
+          "carries": "media"
+        },
+        {
+          "kind": "video",
+          "name": "视频",
+          "carries": "media"
+        },
+        {
+          "kind": "file",
+          "name": "文件",
+          "carries": "media"
+        },
+        {
+          "kind": "emoji",
+          "name": "动图表情",
+          "carries": "media"
+        },
+        {
+          "kind": "link",
+          "name": "链接卡片、公众号文章",
+          "carries": "link"
+        },
+        {
+          "kind": "miniapp",
+          "name": "小程序卡片",
+          "carries": "link"
+        },
+        {
+          "kind": "card",
+          "name": "名片",
+          "carries": "card"
+        },
+        {
+          "kind": "location",
+          "name": "位置",
+          "carries": "location"
+        },
+        {
+          "kind": "quote",
+          "name": "引用回复",
+          "carries": "quoted"
+        },
+        {
+          "kind": "friend_request",
+          "name": "好友申请",
+          "carries": "friend_request"
+        },
+        {
+          "kind": "system",
+          "name": "系统提示（进群、改群名、拍一拍等）",
+          "carries": "system"
+        },
+        {
+          "kind": "revoke",
+          "name": "撤回通知",
+          "carries": "system"
+        },
+        {
+          "kind": "call",
+          "name": "语音/视频通话结束",
+          "carries": "call"
+        },
+        {
+          "kind": "chat_record",
+          "name": "转发的聊天记录",
+          "carries": "chat_record"
+        },
+        {
+          "kind": "transfer",
+          "name": "转账",
+          "carries": "payment"
+        },
+        {
+          "kind": "red_packet",
+          "name": "红包",
+          "carries": "payment"
+        },
+        {
+          "kind": "channel",
+          "name": "视频号"
+        },
+        {
+          "kind": "unknown",
+          "name": "平台未能识别的消息"
+        }
+      ],
+      "objects": [
+        {
+          "name": "payment",
+          "title": "转账与红包",
+          "note": "只展示消息报文中实际提供的信息，不查询实时支付状态。红包卡片通常不含金额，金额缺失时不会返回 0。",
+          "fields": [
+            {
+              "name": "title / description",
+              "type": "string",
+              "note": "卡片标题和说明"
+            },
+            {
+              "name": "amount",
+              "type": "string",
+              "note": "金额，单位为元，保留两位小数；报文没有金额时不返回，不代表零元"
+            },
+            {
+              "name": "amount_fen",
+              "type": "integer",
+              "note": "金额，单位为分，便于精确计算"
+            },
+            {
+              "name": "currency",
+              "type": "string",
+              "note": "币种，报文明确为人民币时为 CNY"
+            },
+            {
+              "name": "subtype",
+              "type": "integer",
+              "note": "转账回调的类型编码；不能作为实时收款状态"
+            },
+            {
+              "name": "memo",
+              "type": "string",
+              "note": "转账备注"
+            },
+            {
+              "name": "payer / receiver",
+              "type": "string",
+              "note": "报文提供的付款人、收款人 wxid；未提供时省略"
+            },
+            {
+              "name": "transaction_id / transfer_id / packet_id",
+              "type": "string",
+              "note": "交易标识、转账标识或红包标识"
+            },
+            {
+              "name": "started_at / started_ts",
+              "type": "string / integer",
+              "note": "转账发起时间，ISO8601 和 Unix 秒"
+            },
+            {
+              "name": "expires_at / expires_ts",
+              "type": "string / integer",
+              "note": "报文提供的有效截止时间，ISO8601 和 Unix 秒"
+            },
+            {
+              "name": "valid_days",
+              "type": "integer",
+              "note": "报文提供的有效天数"
+            },
+            {
+              "name": "sender_title / receiver_title",
+              "type": "string",
+              "note": "红包发送方和接收方的祝福语"
+            },
+            {
+              "name": "sender_description / receiver_description",
+              "type": "string",
+              "note": "红包发送方和接收方的操作说明"
+            },
+            {
+              "name": "scene",
+              "type": "string",
+              "note": "红包场景说明"
+            },
+            {
+              "name": "packet_type",
+              "type": "integer",
+              "note": "报文提供的红包类型编码，0 也会保留"
+            }
+          ],
+          "example": {
+            "amount": "0.01",
+            "amount_fen": 1,
+            "currency": "CNY",
+            "subtype": 1,
+            "title": "微信转账"
+          }
+        },
+        {
+          "name": "media",
+          "title": "附件",
+          "note": "事件中既不包含文件内容，也不包含下载地址。请用 message_id 调用「下载消息附件」获取限时下载地址，拿到地址后请尽快下载。",
+          "fields": [
+            {
+              "name": "downloadable",
+              "type": "boolean",
+              "note": "能否下载到文件。false 表示原文件已在服务器上过期"
+            },
+            {
+              "name": "size",
+              "type": "integer",
+              "note": "文件大小，单位为字节"
+            },
+            {
+              "name": "filename",
+              "type": "string",
+              "note": "文件名，仅 file 类型有"
+            },
+            {
+              "name": "duration",
+              "type": "integer",
+              "note": "时长，单位为秒，语音和视频有"
+            },
+            {
+              "name": "width / height",
+              "type": "integer",
+              "note": "宽和高，单位为像素，图片和视频有"
+            }
+          ],
+          "example": {
+            "downloadable": true,
+            "duration": 2,
+            "height": 398,
+            "size": 591761,
+            "width": 224
+          }
+        },
+        {
+          "name": "link",
+          "title": "链接与小程序",
+          "note": "下表中最后三个字段只有小程序卡片才有。",
+          "fields": [
+            {
+              "name": "title",
+              "type": "string",
+              "note": "标题"
+            },
+            {
+              "name": "description",
+              "type": "string",
+              "note": "摘要"
+            },
+            {
+              "name": "url",
+              "type": "string",
+              "note": "点击后打开的地址"
+            },
+            {
+              "name": "thumb_url",
+              "type": "string",
+              "note": "封面图"
+            },
+            {
+              "name": "source_name",
+              "type": "string",
+              "note": "来源名称，例如公众号名称"
+            },
+            {
+              "name": "app_id",
+              "type": "string",
+              "note": "小程序标识"
+            },
+            {
+              "name": "username",
+              "type": "string",
+              "note": "小程序的原始 ID"
+            },
+            {
+              "name": "path",
+              "type": "string",
+              "note": "小程序页面路径"
+            }
+          ],
+          "example": {
+            "description": "摘要",
+            "source_name": "公众号名字",
+            "title": "文章标题",
+            "url": "https://mp.weixin.qq.com/s/..."
+          }
+        },
+        {
+          "name": "location",
+          "title": "位置",
+          "fields": [
+            {
+              "name": "lat / lng",
+              "type": "number",
+              "note": "经纬度"
+            },
+            {
+              "name": "label",
+              "type": "string",
+              "note": "完整地址"
+            },
+            {
+              "name": "poi_name",
+              "type": "string",
+              "note": "地点名称"
+            }
+          ],
+          "example": {
+            "label": "上海市…",
+            "lat": 31.23,
+            "lng": 121.47,
+            "poi_name": "外滩"
+          }
+        },
+        {
+          "name": "card",
+          "title": "名片",
+          "fields": [
+            {
+              "name": "wxid",
+              "type": "string",
+              "note": "名片所属用户的 wxid"
+            },
+            {
+              "name": "nickname",
+              "type": "string",
+              "note": "昵称"
+            },
+            {
+              "name": "alias",
+              "type": "string",
+              "note": "微信号"
+            },
+            {
+              "name": "avatar",
+              "type": "string",
+              "note": "头像"
+            }
+          ],
+          "example": {
+            "alias": "xiaoming88",
+            "nickname": "小明",
+            "wxid": "wxid_x"
+          }
+        },
+        {
+          "name": "chat_record",
+          "title": "转发的聊天记录",
+          "note": "xml 是这份聊天记录的原始内容，平台原样给出，不解析其中的条目。转发的聊天记录可以包含任意类型的消息，还可能再嵌套一层聊天记录，只解析一部分不如完全不解析。其中的图片和文件以地址和密钥的形式给出，没有 media_id，因为平台从未收到过这些消息，无法为它们提供 ID。这是整个平台唯一以这种方式提供附件的地方。",
+          "fields": [
+            {
+              "name": "title",
+              "type": "string",
+              "note": "卡片标题，例如「小明的聊天记录」，同时也是这条消息的 text"
+            },
+            {
+              "name": "summary",
+              "type": "string",
+              "note": "卡片上显示的预览内容"
+            },
+            {
+              "name": "xml",
+              "type": "string",
+              "note": "聊天记录的完整内容，是一份 XML 文档"
+            }
+          ],
+          "example": {
+            "summary": "小明: 明天十点",
+            "title": "小明的聊天记录",
+            "xml": "<recordinfo>…</recordinfo>"
+          }
+        },
+        {
+          "name": "call",
+          "title": "通话",
+          "note": "通话结束后才会推送这条消息，无论是否接通都会推送。text 是聊天界面中显示的文字（例如「通话时长 04:42」「已取消」），语言与该微信号自身的语言设置一致。",
+          "fields": [
+            {
+              "name": "seconds",
+              "type": "integer",
+              "note": "通话时长，单位为秒。未接通的通话没有这个字段"
+            }
+          ],
+          "example": {
+            "seconds": 282
+          }
+        },
+        {
+          "name": "quoted",
+          "title": "引用回复",
+          "note": "被引用的原消息。回复的内容在外层的 text 中。这里只提供原消息的可读文字，原消息的 XML 结构不会出现在 text 中。需要原消息的附件时，用这里的 message_id 调用「下载消息附件」。",
+          "fields": [
+            {
+              "name": "message_id",
+              "type": "string",
+              "note": "原消息在平台中的 ID，可用于下载附件。平台没有收到过原消息时不返回这个字段"
+            },
+            {
+              "name": "type",
+              "type": "string",
+              "note": "原消息的类型，取值与外层的 type 相同"
+            },
+            {
+              "name": "sender",
+              "type": "string",
+              "note": "原消息的发送人"
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "note": "原消息的文字：文字消息为原文，卡片消息为标题，图片、视频、语音消息没有这个字段"
+            }
+          ],
+          "example": {
+            "message_id": "msg_xxx",
+            "sender": "wxid_x",
+            "text": "明天十点开会？",
+            "type": "text"
+          }
+        },
+        {
+          "name": "friend_request",
+          "title": "好友申请",
+          "note": "friend_request_token 会过期，并且只对当前实例有效。同意申请时，把它原样传给「通过好友申请」接口。",
+          "fields": [
+            {
+              "name": "wxid",
+              "type": "string",
+              "note": "申请人的 wxid"
+            },
+            {
+              "name": "nickname",
+              "type": "string",
+              "note": "昵称"
+            },
+            {
+              "name": "avatar",
+              "type": "string",
+              "note": "头像"
+            },
+            {
+              "name": "greeting",
+              "type": "string",
+              "note": "验证消息"
+            },
+            {
+              "name": "scene",
+              "type": "integer",
+              "note": "添加来源，如搜索、群聊、二维码等"
+            },
+            {
+              "name": "friend_request_token",
+              "type": "string",
+              "note": "同意申请时需要传回的凭据"
+            }
+          ],
+          "example": {
+            "friend_request_token": "frq_…",
+            "greeting": "我是隔壁老王",
+            "nickname": "老王",
+            "scene": 30,
+            "wxid": "wxid_x"
+          }
+        },
+        {
+          "name": "system",
+          "title": "系统提示",
+          "note": "kind 是微信自身的提示分类，种类多且可能变化，不要把它当作固定的枚举来处理。群成员进出、修改群名等情况，平台已经单独推送了 group.* 事件，请优先使用这些事件。",
+          "fields": [
+            {
+              "name": "kind",
+              "type": "string",
+              "note": "提示分类"
+            },
+            {
+              "name": "text",
+              "type": "string",
+              "note": "提示原文"
+            },
+            {
+              "name": "actor",
+              "type": "string",
+              "note": "操作人"
+            },
+            {
+              "name": "target",
+              "type": "string",
+              "note": "操作对象"
+            }
+          ],
+          "example": {
+            "kind": "sysmsgtemplate",
+            "text": "「小明」邀请「小林」加入了群聊"
+          }
+        }
+      ],
+      "example": {
+        "chat_id": "wxid_xxx",
+        "created_at": "2026-08-31T15:37:48+08:00",
+        "created_ts": 1788161868,
+        "from": "wxid_xxx",
+        "is_group": false,
+        "message_id": "msg_q5grjayoxkittumqbyee",
+        "self": false,
+        "sender": "wxid_xxx",
+        "text": "在吗",
+        "to": "wxid_yyy",
+        "type": "text"
+      }
+    }
+  },
+  "errors": [
+    {
+      "code": 0,
+      "name": "OK",
+      "message": "ok",
+      "http_status": 200
+    },
+    {
+      "code": 40000,
+      "name": "INVALID_PARAM",
+      "message": "参数错误",
+      "http_status": 400
+    },
+    {
+      "code": 40100,
+      "name": "UNAUTHORIZED",
+      "message": "API Key 无效或已禁用",
+      "http_status": 401
+    },
+    {
+      "code": 40300,
+      "name": "FORBIDDEN",
+      "message": "无权访问该资源",
+      "http_status": 403
+    },
+    {
+      "code": 40301,
+      "name": "LICENSE_EXPIRED",
+      "message": "授权已到期，请续期后再试",
+      "http_status": 403
+    },
+    {
+      "code": 40302,
+      "name": "QUOTA_EXCEEDED",
+      "message": "实例额度不足",
+      "http_status": 403
+    },
+    {
+      "code": 40303,
+      "name": "PENDING_REVIEW",
+      "message": "该账号正在等待人工审核",
+      "http_status": 403
+    },
+    {
+      "code": 40304,
+      "name": "TRAFFIC_EXHAUSTED",
+      "message": "今日流量已用完",
+      "http_status": 403
+    },
+    {
+      "code": 40400,
+      "name": "NOT_FOUND",
+      "message": "资源不存在",
+      "http_status": 404
+    },
+    {
+      "code": 40900,
+      "name": "ACCOUNT_STATE_CONFLICT",
+      "message": "当前账号状态不允许该操作",
+      "http_status": 409
+    },
+    {
+      "code": 42900,
+      "name": "RATE_LIMITED",
+      "message": "请求过于频繁，请稍后重试",
+      "http_status": 429
+    },
+    {
+      "code": 50000,
+      "name": "INTERNAL",
+      "message": "服务内部错误",
+      "http_status": 500
+    },
+    {
+      "code": 51000,
+      "name": "UPSTREAM_UNAVAILABLE",
+      "message": "微信服务暂时不可用，请稍后重试",
+      "http_status": 502
+    },
+    {
+      "code": 51001,
+      "name": "UPSTREAM_ERROR",
+      "message": "请求微信服务失败，请稍后重试",
+      "http_status": 200
+    },
+    {
+      "code": 52000,
+      "name": "ACCOUNT_OFFLINE",
+      "message": "微信已离线",
+      "http_status": 200
+    },
+    {
+      "code": 52001,
+      "name": "RELOGIN_REQUIRED",
+      "message": "需要重新扫码登录",
+      "http_status": 200
+    },
+    {
+      "code": 52002,
+      "name": "LOGIN_CANCELLED",
+      "message": "用户已取消扫码",
+      "http_status": 200
+    },
+    {
+      "code": 52003,
+      "name": "QRCODE_EXPIRED",
+      "message": "二维码已过期，请重新获取",
+      "http_status": 200
+    },
+    {
+      "code": 52004,
+      "name": "CAPTCHA_REQUIRED",
+      "message": "需要完成安全验证",
+      "http_status": 200
+    },
+    {
+      "code": 52005,
+      "name": "SESSION_UNSTABLE",
+      "message": "登录环境异常，正在尝试恢复，请稍后重试",
+      "http_status": 200
+    },
+    {
+      "code": 52006,
+      "name": "EGRESS_UNREACHABLE",
+      "message": "无法连接代理网络，请检查后重试",
+      "http_status": 200
+    },
+    {
+      "code": 52100,
+      "name": "CONTACT_NOT_FOUND",
+      "message": "未搜索到该用户",
+      "http_status": 200
+    },
+    {
+      "code": 52101,
+      "name": "FRIEND_REQUEST_LIMITED",
+      "message": "添加好友过于频繁或已受限",
+      "http_status": 200
+    },
+    {
+      "code": 52200,
+      "name": "SEND_FAILED",
+      "message": "消息发送失败",
+      "http_status": 200
+    },
+    {
+      "code": 52201,
+      "name": "CONTACT_UNREACHABLE",
+      "message": "对方已将你删除，或该群聊不存在",
+      "http_status": 200
+    },
+    {
+      "code": 52202,
+      "name": "GROUP_MEMBERSHIP_LOST",
+      "message": "你已不在该群聊中",
+      "http_status": 200
+    },
+    {
+      "code": 52203,
+      "name": "VERIFICATION_REQUIRED",
+      "message": "对方需要先通过好友验证才能接收消息",
+      "http_status": 200
+    },
+    {
+      "code": 52204,
+      "name": "CONTENT_BLOCKED",
+      "message": "内容被微信安全策略拦截，请调整后重试",
+      "http_status": 200
+    },
+    {
+      "code": 52205,
+      "name": "SEND_TOO_FREQUENT",
+      "message": "发送过于频繁，已被微信临时限制",
+      "http_status": 200
+    },
+    {
+      "code": 52300,
+      "name": "MOMENT_FAILED",
+      "message": "朋友圈操作失败",
+      "http_status": 200
+    },
+    {
+      "code": 52301,
+      "name": "MOMENT_COOLDOWN",
+      "message": "账号登录未满 24 小时，暂时只能浏览朋友圈",
+      "http_status": 200
+    }
+  ]
+}

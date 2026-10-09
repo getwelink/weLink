@@ -11,10 +11,11 @@
 //
 // 调用失败返回 *Error，上面带平台错误码和 RequestID。
 //
-// 本文件由接口清单生成，不要手改。
+// 接口方法按接口清单整理；请求、验签和事件流逻辑在本文件维护。
 package welink
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/hmac"
@@ -54,7 +55,7 @@ func VerifyWebhook(secret string, body []byte, signature string) bool {
 	return hmac.Equal([]byte(want), []byte(signature))
 }
 
-// Client 一个 API Key 一个实例。并发安全，可以长期持有。
+// Client 使用一个 API Key 管理多个实例。配置完成后可以并发调用。
 type Client struct {
 	APIKey  string
 	BaseURL string
@@ -129,7 +130,7 @@ func (c *Client) Upload(ctx context.Context, path, name string, content []byte, 
 		return nil, &Error{Message: "读响应失败：" + err.Error(), Status: resp.StatusCode}
 	}
 	var envelope struct {
-		Code      int             `json:"code"`
+		Code      *int            `json:"code"`
 		Message   string          `json:"message"`
 		Data      json.RawMessage `json:"data"`
 		RequestID string          `json:"request_id"`
@@ -138,8 +139,11 @@ func (c *Client) Upload(ctx context.Context, path, name string, content []byte, 
 		return nil, &Error{Message: fmt.Sprintf("服务返回的不是 JSON（HTTP %d）", resp.StatusCode),
 			Status: resp.StatusCode}
 	}
-	if envelope.Code != 0 {
-		return nil, &Error{Code: envelope.Code, Message: envelope.Message,
+	if envelope.Code == nil {
+		return nil, &Error{Message: "服务返回的不是预期的结构", Status: resp.StatusCode}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 || *envelope.Code != 0 {
+		return nil, &Error{Code: *envelope.Code, Message: envelope.Message,
 			RequestID: envelope.RequestID, Status: resp.StatusCode}
 	}
 	return envelope.Data, nil
@@ -215,7 +219,7 @@ func (c *Client) Call(ctx context.Context, method, path string, query, body M) (
 	}
 
 	var envelope struct {
-		Code      int             `json:"code"`
+		Code      *int            `json:"code"`
 		Message   string          `json:"message"`
 		Data      json.RawMessage `json:"data"`
 		RequestID string          `json:"request_id"`
@@ -224,8 +228,11 @@ func (c *Client) Call(ctx context.Context, method, path string, query, body M) (
 		return nil, &Error{Message: fmt.Sprintf("服务返回的不是 JSON（HTTP %d）", resp.StatusCode),
 			Status: resp.StatusCode}
 	}
-	if envelope.Code != 0 {
-		return nil, &Error{Code: envelope.Code, Message: envelope.Message,
+	if envelope.Code == nil {
+		return nil, &Error{Message: "服务返回的不是预期的结构", Status: resp.StatusCode}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 || *envelope.Code != 0 {
+		return nil, &Error{Code: *envelope.Code, Message: envelope.Message,
 			RequestID: envelope.RequestID, Status: resp.StatusCode}
 	}
 	return envelope.Data, nil
@@ -1204,8 +1211,73 @@ func (c *Client) PlatformEvents(ctx context.Context, args M) (json.RawMessage, e
 // PlatformStream 通过 SSE 长连接实时接收该实例的事件，事件内容与 Webhook 推送的相同。
 //
 // GET /v1/accounts/{account_id}/stream
-func (c *Client) PlatformStream(ctx context.Context, accountId string) (json.RawMessage, error) {
-	return c.Call(ctx, "GET", "/accounts/"+url.PathEscape(accountId)+"/stream", nil, nil)
+// EventStream 持有 SSE 连接。调用者必须 Close，或取消传入的 context。
+type EventStream struct {
+	body    io.ReadCloser
+	scanner *bufio.Scanner
+}
+
+func (s *EventStream) Close() error { return s.body.Close() }
+
+// Next 返回下一条事件；心跳注释会跳过，连接结束返回 io.EOF。
+func (s *EventStream) Next() (json.RawMessage, error) {
+	var data []string
+	for s.scanner.Scan() {
+		line := strings.TrimSuffix(s.scanner.Text(), "\r")
+		if line == "" && len(data) > 0 {
+			raw := json.RawMessage(strings.Join(data, "\n"))
+			if !json.Valid(raw) {
+				return nil, &Error{Message: "事件内容不是 JSON"}
+			}
+			return raw, nil
+		}
+		if strings.HasPrefix(line, "data:") {
+			data = append(data, strings.TrimPrefix(line[5:], " "))
+		}
+	}
+	if err := s.scanner.Err(); err != nil {
+		return nil, &Error{Message: "事件流连接中断：" + err.Error()}
+	}
+	return nil, io.EOF
+}
+
+func (c *Client) PlatformStream(ctx context.Context, accountId string) (*EventStream, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+"/v1/accounts/"+url.PathEscape(accountId)+"/stream", nil)
+	if err != nil {
+		return nil, &Error{Message: err.Error()}
+	}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Accept", "text/event-stream")
+	client := c.HTTP
+	if client == nil {
+		client = http.DefaultClient
+	}
+	streamClient := *client
+	streamClient.Timeout = 0 // 生命周期由 context 控制，避免普通请求超时截断长连接。
+	resp, err := streamClient.Do(req)
+	if err != nil {
+		return nil, &Error{Message: "无法打开事件流：" + err.Error()}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		var envelope struct {
+			Code      int    `json:"code"`
+			Message   string `json:"message"`
+			RequestID string `json:"request_id"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&envelope)
+		if envelope.Message == "" {
+			envelope.Message = "无法打开事件流"
+		}
+		return nil, &Error{Code: envelope.Code, Message: envelope.Message, RequestID: envelope.RequestID, Status: resp.StatusCode}
+	}
+	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
+		resp.Body.Close()
+		return nil, &Error{Message: "服务没有返回事件流", Status: resp.StatusCode}
+	}
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 4096), 2<<20)
+	return &EventStream{body: resp.Body, scanner: scanner}, nil
 }
 
 // take 挑出这个接口认识的参数，其余的忽略，免得把不相干的字段发出去。

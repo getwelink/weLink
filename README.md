@@ -149,7 +149,9 @@ python examples/python/1_quickstart.py
 
 ## 四种语言的微信 SDK
 
-都是**零依赖**，从接口清单生成，和服务端同源，不会对不上。
+四种客户端都**只使用语言自带的库**，覆盖当前 88 个接口。支持验签、事件轮询和 SSE，具体用法见各语言 README。
+
+[接口文档](docs/API.md) · [回调字段](docs/WEBHOOK.md) · [OpenAPI 文件](docs/openapi.json) · [维护记录](CHANGELOG.md)
 
 | 语言 | 位置 | 要求 |
 | --- | --- | --- |

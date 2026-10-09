@@ -33,13 +33,14 @@ import javax.crypto.spec.SecretKeySpec;
  *
  * 不依赖任何第三方库，JDK 11 以上即可。
  *
- * 本文件由接口清单生成，不要手改。
+ * 接口方法按接口清单整理；请求、验签和事件流逻辑在本文件维护。
  */
 public class WeLink {
 
     private final String apiKey;
     private final String baseUrl;
     private final HttpClient http;
+    private final Duration timeout;
 
     public WeLink(String apiKey, String baseUrl) {
         this(apiKey, baseUrl, Duration.ofSeconds(30));
@@ -52,6 +53,7 @@ public class WeLink {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new IllegalArgumentException("baseUrl 不能为空，填你拿到的服务地址");
         }
+        this.timeout = timeout;
         this.apiKey = apiKey;
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.http = HttpClient.newBuilder().connectTimeout(timeout).build();
@@ -110,12 +112,13 @@ public class WeLink {
                 if (value == null || "".equals(value)) {
                     continue;
                 }
-                if (q.length() > 0) {
-                    q.append('&');
+                Iterable<?> values = value instanceof Iterable ? (Iterable<?>) value : java.util.Collections.singletonList(value);
+                for (Object one : values) {
+                    if (one == null) continue;
+                    if (q.length() > 0) q.append('&');
+                    q.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8)).append('=')
+                            .append(URLEncoder.encode(String.valueOf(one), StandardCharsets.UTF_8));
                 }
-                q.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
-                        .append('=')
-                        .append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
             }
             if (q.length() > 0) {
                 target.append('?').append(q);
@@ -137,6 +140,7 @@ public class WeLink {
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(target.toString()))
+                .timeout(timeout)
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Accept", "application/json")
                 .method(method, payload);
@@ -147,7 +151,10 @@ public class WeLink {
         HttpResponse<String> response;
         try {
             response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new WeLinkException(0, "请求已中断", "", 0);
+        } catch (IOException e) {
             throw new WeLinkException(0, "连不上服务：" + e.getMessage(), "", 0);
         }
 
@@ -163,9 +170,13 @@ public class WeLink {
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> envelope = (Map<String, Object>) parsed;
-        int code = envelope.get("code") instanceof BigDecimal
-                ? ((BigDecimal) envelope.get("code")).intValue() : 0;
-        if (code != 0) {
+        if (!(envelope.get("code") instanceof BigDecimal)) {
+            throw new WeLinkException(0, "服务返回的不是预期的结构", "", response.statusCode());
+        }
+        int code;
+        try { code = ((BigDecimal) envelope.get("code")).intValueExact(); }
+        catch (ArithmeticException e) { throw new WeLinkException(0, "响应错误码不是整数", "", response.statusCode()); }
+        if (response.statusCode() < 200 || response.statusCode() >= 300 || code != 0) {
             throw new WeLinkException(code, String.valueOf(envelope.get("message")),
                     String.valueOf(envelope.getOrDefault("request_id", "")), response.statusCode());
         }
@@ -217,6 +228,7 @@ public class WeLink {
         }
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1" + path))
+                .timeout(timeout)
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Accept", "application/json")
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
@@ -226,7 +238,10 @@ public class WeLink {
         HttpResponse<String> response;
         try {
             response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new WeLinkException(0, "请求已中断", "", 0);
+        } catch (IOException e) {
             throw new WeLinkException(0, "连不上服务：" + e.getMessage(), "", 0);
         }
 
@@ -242,13 +257,21 @@ public class WeLink {
         }
         @SuppressWarnings("unchecked")
         Map<String, Object> envelope = (Map<String, Object>) parsed;
-        int code = envelope.get("code") instanceof BigDecimal
-                ? ((BigDecimal) envelope.get("code")).intValue() : 0;
-        if (code != 0) {
+        if (!(envelope.get("code") instanceof BigDecimal)) {
+            throw new WeLinkException(0, "服务返回的不是预期的结构", "", response.statusCode());
+        }
+        int code;
+        try { code = ((BigDecimal) envelope.get("code")).intValueExact(); }
+        catch (ArithmeticException e) { throw new WeLinkException(0, "响应错误码不是整数", "", response.statusCode()); }
+        if (response.statusCode() < 200 || response.statusCode() >= 300 || code != 0) {
             throw new WeLinkException(code, String.valueOf(envelope.get("message")),
                     String.valueOf(envelope.getOrDefault("request_id", "")), response.statusCode());
         }
         return envelope.get("data");
+    }
+
+    private static String pathSegment(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     /** 从参数里挑出这个接口认识的那几个，其余忽略。 */
@@ -297,7 +320,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}
      */
     public Object accountGet(String accountId) {
-        return call("GET", "/accounts/" + accountId, null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId), null, null);
     }
 
     /**
@@ -309,7 +332,7 @@ public class WeLink {
      * </ul>
      */
     public Object accountQrcode(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/login/qrcode", null, take(args, "proxy"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/login/qrcode", null, take(args, "proxy"));
     }
 
     /**
@@ -317,7 +340,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/login/status
      */
     public Object accountLoginStatus(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/login/status", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/login/status", null, null);
     }
 
     /**
@@ -325,7 +348,7 @@ public class WeLink {
      * <p>POST /v1/accounts/{account_id}/reconnect
      */
     public Object accountReconnect(String accountId) {
-        return call("POST", "/accounts/" + accountId + "/reconnect", null, null);
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/reconnect", null, null);
     }
 
     /**
@@ -333,7 +356,7 @@ public class WeLink {
      * <p>POST /v1/accounts/{account_id}/logout
      */
     public Object accountLogout(String accountId) {
-        return call("POST", "/accounts/" + accountId + "/logout", null, null);
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/logout", null, null);
     }
 
     /**
@@ -341,7 +364,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}
      */
     public Object accountDelete(String accountId) {
-        return call("DELETE", "/accounts/" + accountId, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId), null, null);
     }
 
     /**
@@ -350,7 +373,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/profile
      */
     public Object accountProfile(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/profile", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/profile", null, null);
     }
 
     /**
@@ -367,7 +390,7 @@ public class WeLink {
      * </ul>
      */
     public Object accountUpdateProfile(String accountId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/profile", null, take(args, "nickname", "signature", "sex", "country", "province", "city"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/profile", null, take(args, "nickname", "signature", "sex", "country", "province", "city"));
     }
 
     /**
@@ -379,7 +402,7 @@ public class WeLink {
      * </ul>
      */
     public Object accountSetAvatar(String accountId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/profile/avatar", null, take(args, "url"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/profile/avatar", null, take(args, "url"));
     }
 
     /**
@@ -388,7 +411,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/profile/qrcode
      */
     public Object accountQrcodeSelf(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/profile/qrcode", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/profile/qrcode", null, null);
     }
 
     /**
@@ -401,7 +424,7 @@ public class WeLink {
      * </ul>
      */
     public Object accountPrivacy(String accountId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/privacy", null, take(args, "option", "enabled"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/privacy", null, take(args, "option", "enabled"));
     }
 
     /**
@@ -409,7 +432,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/devices
      */
     public Object accountDevices(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/devices", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/devices", null, null);
     }
 
     /**
@@ -417,7 +440,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/devices/{device_id}
      */
     public Object accountDeviceSignout(String accountId, String deviceId) {
-        return call("DELETE", "/accounts/" + accountId + "/devices/" + deviceId, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/devices/" + pathSegment(deviceId), null, null);
     }
 
     /**
@@ -429,7 +452,7 @@ public class WeLink {
      * </ul>
      */
     public Object accountHistory(String accountId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/history", null, take(args, "keep"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/history", null, take(args, "keep"));
     }
 
     /**
@@ -443,7 +466,7 @@ public class WeLink {
      * </ul>
      */
     public Object accountWebhook(String accountId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/webhook", null, take(args, "url", "secret", "events"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/webhook", null, take(args, "url", "secret", "events"));
     }
 
 
@@ -459,7 +482,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactIds(String accountId, Map<String, Object> args) {
-        return call("GET", "/accounts/" + accountId + "/contacts", take(args, "cursor"), null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/contacts", take(args, "cursor"), null);
     }
 
     /**
@@ -472,7 +495,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactBatch(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/contacts/batch", null, take(args, "wxids"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/batch", null, take(args, "wxids"));
     }
 
     /**
@@ -485,7 +508,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactDetail(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/contacts/detail", null, take(args, "wxids"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/detail", null, take(args, "wxids"));
     }
 
     /**
@@ -498,7 +521,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactCheck(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/contacts/check", null, take(args, "wxids"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/check", null, take(args, "wxids"));
     }
 
     /**
@@ -506,7 +529,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/contacts/external
      */
     public Object contactExternal(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/contacts/external", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/contacts/external", null, null);
     }
 
     /**
@@ -514,7 +537,7 @@ public class WeLink {
      * <p>POST /v1/accounts/{account_id}/contacts/external/sync
      */
     public Object contactExternalSync(String accountId) {
-        return call("POST", "/accounts/" + accountId + "/contacts/external/sync", null, null);
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/external/sync", null, null);
     }
 
     /**
@@ -527,7 +550,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactSearch(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/contacts/search", null, take(args, "keyword"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/search", null, take(args, "keyword"));
     }
 
     /**
@@ -542,7 +565,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactAdd(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/contacts/add", null, take(args, "contact_token", "greeting", "scene"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/add", null, take(args, "contact_token", "greeting", "scene"));
     }
 
     /**
@@ -555,7 +578,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactAccept(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/contacts/accept", null, take(args, "friend_request_token"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/accept", null, take(args, "friend_request_token"));
     }
 
     /**
@@ -567,7 +590,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactRemark(String accountId, String wxid, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/contacts/" + wxid + "/remark", null, take(args, "remark"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/contacts/" + pathSegment(wxid) + "/remark", null, take(args, "remark"));
     }
 
     /**
@@ -575,7 +598,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/contacts/{wxid}
      */
     public Object contactDelete(String accountId, String wxid) {
-        return call("DELETE", "/accounts/" + accountId + "/contacts/" + wxid, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/contacts/" + pathSegment(wxid), null, null);
     }
 
     /**
@@ -584,7 +607,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/labels
      */
     public Object labelList(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/labels", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/labels", null, null);
     }
 
     /**
@@ -596,7 +619,7 @@ public class WeLink {
      * </ul>
      */
     public Object labelAdd(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/labels", null, take(args, "name"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/labels", null, take(args, "name"));
     }
 
     /**
@@ -608,7 +631,7 @@ public class WeLink {
      * </ul>
      */
     public Object labelRename(String accountId, String labelId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/labels/" + labelId, null, take(args, "name"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/labels/" + pathSegment(labelId), null, take(args, "name"));
     }
 
     /**
@@ -616,7 +639,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/labels/{label_id}
      */
     public Object labelDelete(String accountId, String labelId) {
-        return call("DELETE", "/accounts/" + accountId + "/labels/" + labelId, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/labels/" + pathSegment(labelId), null, null);
     }
 
     /**
@@ -629,7 +652,7 @@ public class WeLink {
      * </ul>
      */
     public Object contactLabels(String accountId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/contacts/labels", null, take(args, "wxids", "label_ids"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/contacts/labels", null, take(args, "wxids", "label_ids"));
     }
 
 
@@ -644,7 +667,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupCreate(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups", null, take(args, "members"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups", null, take(args, "members"));
     }
 
     /**
@@ -653,7 +676,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/groups/{group_id}
      */
     public Object groupGet(String accountId, String groupId) {
-        return call("GET", "/accounts/" + accountId + "/groups/" + groupId, null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId), null, null);
     }
 
     /**
@@ -662,7 +685,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/groups/{group_id}/members
      */
     public Object groupMembers(String accountId, String groupId) {
-        return call("GET", "/accounts/" + accountId + "/groups/" + groupId + "/members", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/members", null, null);
     }
 
     /**
@@ -675,7 +698,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupMemberDetail(String accountId, String groupId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/" + groupId + "/members/detail", null, take(args, "members"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/members/detail", null, take(args, "members"));
     }
 
     /**
@@ -688,7 +711,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupInvite(String accountId, String groupId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/" + groupId + "/invite", null, take(args, "members", "reason"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/invite", null, take(args, "members", "reason"));
     }
 
     /**
@@ -700,7 +723,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupRemove(String accountId, String groupId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/" + groupId + "/members/remove", null, take(args, "members"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/members/remove", null, take(args, "members"));
     }
 
     /**
@@ -713,7 +736,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupAdmins(String accountId, String groupId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/" + groupId + "/admins", null, take(args, "action", "members"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/admins", null, take(args, "action", "members"));
     }
 
     /**
@@ -725,7 +748,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupRename(String accountId, String groupId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/groups/" + groupId + "/name", null, take(args, "name"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/name", null, take(args, "name"));
     }
 
     /**
@@ -737,7 +760,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupAnnouncement(String accountId, String groupId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/groups/" + groupId + "/announcement", null, take(args, "content"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/announcement", null, take(args, "content"));
     }
 
     /**
@@ -749,7 +772,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupRemark(String accountId, String groupId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/groups/" + groupId + "/remark", null, take(args, "remark"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/remark", null, take(args, "remark"));
     }
 
     /**
@@ -761,7 +784,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupNickname(String accountId, String groupId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/groups/" + groupId + "/nickname", null, take(args, "nickname"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/nickname", null, take(args, "nickname"));
     }
 
     /**
@@ -773,7 +796,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupKept(String accountId, String groupId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/groups/" + groupId + "/kept", null, take(args, "enabled"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/kept", null, take(args, "enabled"));
     }
 
     /**
@@ -782,7 +805,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/groups/{group_id}/qrcode
      */
     public Object groupQrcode(String accountId, String groupId) {
-        return call("GET", "/accounts/" + accountId + "/groups/" + groupId + "/qrcode", null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/qrcode", null, null);
     }
 
     /**
@@ -794,7 +817,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupJoin(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/join", null, take(args, "url"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/join", null, take(args, "url"));
     }
 
     /**
@@ -806,7 +829,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupPreview(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/preview", null, take(args, "url"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/preview", null, take(args, "url"));
     }
 
     /**
@@ -821,7 +844,7 @@ public class WeLink {
      * </ul>
      */
     public Object groupApprove(String accountId, String groupId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/groups/" + groupId + "/approve", null, take(args, "inviter", "message_id", "ticket", "members"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/groups/" + pathSegment(groupId) + "/approve", null, take(args, "inviter", "message_id", "ticket", "members"));
     }
 
     /**
@@ -833,7 +856,7 @@ public class WeLink {
      * </ul>
      */
     public Object chatMuted(String accountId, String chatId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/chats/" + chatId + "/muted", null, take(args, "enabled"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/chats/" + pathSegment(chatId) + "/muted", null, take(args, "enabled"));
     }
 
     /**
@@ -845,7 +868,7 @@ public class WeLink {
      * </ul>
      */
     public Object chatPinned(String accountId, String chatId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/chats/" + chatId + "/pinned", null, take(args, "enabled"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/chats/" + pathSegment(chatId) + "/pinned", null, take(args, "enabled"));
     }
 
 
@@ -862,7 +885,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageText(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/text", null, take(args, "to", "content", "mentions"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/text", null, take(args, "to", "content", "mentions"));
     }
 
     /**
@@ -877,7 +900,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageImage(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/image", null, take(args, "to", "url", "media_id", "use_cache"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/image", null, take(args, "to", "url", "media_id", "use_cache"));
     }
 
     /**
@@ -894,7 +917,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageVideo(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/video", null, take(args, "to", "url", "media_id", "use_cache", "duration", "thumbnail_url"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/video", null, take(args, "to", "url", "media_id", "use_cache", "duration", "thumbnail_url"));
     }
 
     /**
@@ -908,7 +931,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageVoice(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/voice", null, take(args, "to", "url", "seconds"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/voice", null, take(args, "to", "url", "seconds"));
     }
 
     /**
@@ -924,7 +947,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageFile(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/file", null, take(args, "to", "url", "media_id", "use_cache", "filename"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/file", null, take(args, "to", "url", "media_id", "use_cache", "filename"));
     }
 
     /**
@@ -938,7 +961,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageSticker(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/sticker", null, take(args, "to", "checksum", "length"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/sticker", null, take(args, "to", "checksum", "length"));
     }
 
     /**
@@ -955,7 +978,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageLink(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/link", null, take(args, "to", "title", "description", "url", "thumb_url", "source_name"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/link", null, take(args, "to", "title", "description", "url", "thumb_url", "source_name"));
     }
 
     /**
@@ -974,7 +997,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageMiniapp(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/miniapp", null, take(args, "to", "app_id", "username", "title", "description", "path", "thumb_url", "source_name"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/miniapp", null, take(args, "to", "app_id", "username", "title", "description", "path", "thumb_url", "source_name"));
     }
 
     /**
@@ -987,7 +1010,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageForward(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/forward", null, take(args, "to", "message_id"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/forward", null, take(args, "to", "message_id"));
     }
 
     /**
@@ -995,7 +1018,7 @@ public class WeLink {
      * <p>POST /v1/accounts/{account_id}/messages/{message_id}/recall
      */
     public Object messageRecall(String accountId, String messageId) {
-        return call("POST", "/accounts/" + accountId + "/messages/" + messageId + "/recall", null, null);
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/" + pathSegment(messageId) + "/recall", null, null);
     }
 
     /**
@@ -1009,7 +1032,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageHistory(String accountId, Map<String, Object> args) {
-        return call("GET", "/accounts/" + accountId + "/messages", take(args, "peer", "cursor", "limit"), null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/messages", take(args, "peer", "cursor", "limit"), null);
     }
 
     /**
@@ -1021,7 +1044,7 @@ public class WeLink {
      * </ul>
      */
     public Object messageSync(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/messages/sync", null, take(args, "cursor"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/messages/sync", null, take(args, "cursor"));
     }
 
     /**
@@ -1029,7 +1052,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/messages/{message_id}
      */
     public Object messageGet(String accountId, String messageId) {
-        return call("GET", "/accounts/" + accountId + "/messages/" + messageId, null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/messages/" + pathSegment(messageId), null, null);
     }
 
     /**
@@ -1042,7 +1065,7 @@ public class WeLink {
      * </ul>
      */
     public Object favoriteList(String accountId, Map<String, Object> args) {
-        return call("GET", "/accounts/" + accountId + "/favorites", take(args, "cursor"), null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/favorites", take(args, "cursor"), null);
     }
 
     /**
@@ -1051,7 +1074,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/favorites/{fav_id}
      */
     public Object favoriteGet(String accountId, String favId) {
-        return call("GET", "/accounts/" + accountId + "/favorites/" + favId, null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/favorites/" + pathSegment(favId), null, null);
     }
 
     /**
@@ -1059,7 +1082,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/favorites/{fav_id}
      */
     public Object favoriteDelete(String accountId, String favId) {
-        return call("DELETE", "/accounts/" + accountId + "/favorites/" + favId, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/favorites/" + pathSegment(favId), null, null);
     }
 
 
@@ -1077,7 +1100,7 @@ public class WeLink {
     public Object mediaUpload(String accountId, Map<String, Object> args) {
         byte[] content = (byte[]) args.get("file");
         Object named = args.get("filename");
-        return upload("/accounts/" + accountId + "/media/upload", named == null ? null : String.valueOf(named),
+        return upload("/accounts/" + pathSegment(accountId) + "/media/upload", named == null ? null : String.valueOf(named),
                 content, take(args, "kind"));
     }
 
@@ -1091,7 +1114,7 @@ public class WeLink {
      * </ul>
      */
     public Object mediaFromMessage(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/media/download", null, take(args, "message_id"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/media/download", null, take(args, "message_id"));
     }
 
     /**
@@ -1104,7 +1127,7 @@ public class WeLink {
      * </ul>
      */
     public Object mediaCached(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/media/cached", null, take(args, "url", "kind"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/media/cached", null, take(args, "url", "kind"));
     }
 
     /**
@@ -1112,7 +1135,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/media/{media_id}
      */
     public Object mediaGet(String accountId, String mediaId) {
-        return call("GET", "/accounts/" + accountId + "/media/" + mediaId, null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/media/" + pathSegment(mediaId), null, null);
     }
 
     /**
@@ -1124,7 +1147,7 @@ public class WeLink {
      * </ul>
      */
     public Object mediaMoment(String accountId, String momentId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/moments/" + momentId + "/media/download", null, take(args, "index"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId) + "/media/download", null, take(args, "index"));
     }
 
 
@@ -1140,7 +1163,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentTimeline(String accountId, Map<String, Object> args) {
-        return call("GET", "/accounts/" + accountId + "/moments", take(args, "cursor"), null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/moments", take(args, "cursor"), null);
     }
 
     /**
@@ -1149,7 +1172,7 @@ public class WeLink {
      * <p>GET /v1/accounts/{account_id}/moments/{moment_id}
      */
     public Object momentGet(String accountId, String momentId) {
-        return call("GET", "/accounts/" + accountId + "/moments/" + momentId, null, null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId), null, null);
     }
 
     /**
@@ -1162,7 +1185,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentUser(String accountId, String wxid, Map<String, Object> args) {
-        return call("GET", "/accounts/" + accountId + "/moments/user/" + wxid, take(args, "cursor"), null);
+        return call("GET", "/accounts/" + pathSegment(accountId) + "/moments/user/" + pathSegment(wxid), take(args, "cursor"), null);
     }
 
     /**
@@ -1176,7 +1199,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentPostText(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/moments/text", null, take(args, "content", "mentions", "visibility"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/text", null, take(args, "content", "mentions", "visibility"));
     }
 
     /**
@@ -1190,7 +1213,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentPostImages(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/moments/images", null, take(args, "content", "images", "visibility"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/images", null, take(args, "content", "images", "visibility"));
     }
 
     /**
@@ -1206,7 +1229,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentPostVideo(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/moments/video", null, take(args, "content", "video", "cover", "duration", "visibility"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/video", null, take(args, "content", "video", "cover", "duration", "visibility"));
     }
 
     /**
@@ -1219,7 +1242,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentRepost(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/moments/forward", null, take(args, "moment_id", "visibility"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/forward", null, take(args, "moment_id", "visibility"));
     }
 
     /**
@@ -1227,7 +1250,7 @@ public class WeLink {
      * <p>POST /v1/accounts/{account_id}/moments/{moment_id}/like
      */
     public Object momentLike(String accountId, String momentId) {
-        return call("POST", "/accounts/" + accountId + "/moments/" + momentId + "/like", null, null);
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId) + "/like", null, null);
     }
 
     /**
@@ -1235,7 +1258,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/moments/{moment_id}/like
      */
     public Object momentUnlike(String accountId, String momentId) {
-        return call("DELETE", "/accounts/" + accountId + "/moments/" + momentId + "/like", null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId) + "/like", null, null);
     }
 
     /**
@@ -1248,7 +1271,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentComment(String accountId, String momentId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + accountId + "/moments/" + momentId + "/comments", null, take(args, "content", "reply_to"));
+        return call("POST", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId) + "/comments", null, take(args, "content", "reply_to"));
     }
 
     /**
@@ -1256,7 +1279,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/moments/{moment_id}/comments/{comment_id}
      */
     public Object momentDeleteComment(String accountId, String momentId, String commentId) {
-        return call("DELETE", "/accounts/" + accountId + "/moments/" + momentId + "/comments/" + commentId, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId) + "/comments/" + pathSegment(commentId), null, null);
     }
 
     /**
@@ -1264,7 +1287,7 @@ public class WeLink {
      * <p>DELETE /v1/accounts/{account_id}/moments/{moment_id}
      */
     public Object momentDelete(String accountId, String momentId) {
-        return call("DELETE", "/accounts/" + accountId + "/moments/" + momentId, null, null);
+        return call("DELETE", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId), null, null);
     }
 
     /**
@@ -1276,7 +1299,7 @@ public class WeLink {
      * </ul>
      */
     public Object momentPrivacy(String accountId, String momentId, Map<String, Object> args) {
-        return call("PUT", "/accounts/" + accountId + "/moments/" + momentId + "/privacy", null, take(args, "private"));
+        return call("PUT", "/accounts/" + pathSegment(accountId) + "/moments/" + pathSegment(momentId) + "/privacy", null, take(args, "private"));
     }
 
 
@@ -1314,8 +1337,68 @@ public class WeLink {
      * 事件流 —— 通过 SSE 长连接实时接收该实例的事件，事件内容与 Webhook 推送的相同。
      * <p>GET /v1/accounts/{account_id}/stream
      */
-    public Object platformStream(String accountId) {
-        return call("GET", "/accounts/" + accountId + "/stream", null, null);
+    public EventStream platformStream(String accountId) {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/accounts/" + pathSegment(accountId) + "/stream"))
+                .timeout(timeout).header("Authorization", "Bearer " + apiKey)
+                .header("Accept", "text/event-stream").GET().build();
+        try {
+            HttpResponse<java.io.InputStream> response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                try (java.io.InputStream body = response.body()) {
+                    Object parsed;
+                    try { parsed = Json.read(new String(body.readAllBytes(), StandardCharsets.UTF_8)); }
+                    catch (RuntimeException e) { parsed = null; }
+                    Map<?, ?> envelope = parsed instanceof Map ? (Map<?, ?>) parsed : Map.of();
+                    Object code = envelope.get("code");
+                    throw new WeLinkException(code instanceof BigDecimal ? ((BigDecimal) code).intValue() : 0,
+                            envelope.get("message") == null ? "无法打开事件流" : String.valueOf(envelope.get("message")),
+                            envelope.get("request_id") == null ? "" : String.valueOf(envelope.get("request_id")), response.statusCode());
+                }
+            }
+            if (!response.headers().firstValue("Content-Type").orElse("").startsWith("text/event-stream")) {
+                response.body().close();
+                throw new WeLinkException(0, "服务没有返回事件流", "", response.statusCode());
+            }
+            return new EventStream(response.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new WeLinkException(0, "请求已中断", "", 0);
+        } catch (IOException e) {
+            throw new WeLinkException(0, "无法打开事件流：" + e.getMessage(), "", 0);
+        }
+    }
+
+    /** SSE 连接，须使用 try-with-resources 关闭；next() 在连接结束时返回 null。 */
+    public static final class EventStream implements AutoCloseable {
+        private final java.io.BufferedReader reader;
+        EventStream(java.io.InputStream body) {
+            reader = new java.io.BufferedReader(new java.io.InputStreamReader(body, StandardCharsets.UTF_8));
+        }
+        public Map<String, Object> next() {
+            try {
+                java.util.List<String> data = new java.util.ArrayList<>();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty() && !data.isEmpty()) {
+                        Object parsed = Json.read(String.join("\n", data));
+                        if (!(parsed instanceof Map)) throw new WeLinkException(0, "事件内容不是 JSON 对象", "", 0);
+                        @SuppressWarnings("unchecked") Map<String, Object> event = (Map<String, Object>) parsed;
+                        return event;
+                    }
+                    if (line.startsWith("data:")) {
+                        String value = line.substring(5);
+                        data.add(value.startsWith(" ") ? value.substring(1) : value);
+                    }
+                }
+                return null;
+            } catch (IOException e) {
+                throw new WeLinkException(0, "事件流连接中断：" + e.getMessage(), "", 0);
+            } catch (RuntimeException e) {
+                if (e instanceof WeLinkException) throw e;
+                throw new WeLinkException(0, "事件内容不是 JSON", "", 0);
+            }
+        }
+        public void close() throws IOException { reader.close(); }
     }
 
 

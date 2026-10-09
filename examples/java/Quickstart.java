@@ -34,9 +34,7 @@ public class Quickstart {
 
         // 2. 取登录二维码，用微信扫它。
         Map<?, ?> code = (Map<?, ?>) wx.accountQrcode(accountId, null);
-        String dataUrl = String.valueOf(code.get("qrcode"));
-        System.out.println("二维码（把这个 data URL 贴到浏览器地址栏就能看到）：");
-        System.out.println(dataUrl.substring(0, Math.min(80, dataUrl.length())) + " ...");
+        saveQRCode(code);
 
         // 3. 等扫码。Mac 登录扫完还要过一次新设备验证，平台自动做，
         //    会在 scanned 停一会儿，别急着取消。
@@ -49,7 +47,7 @@ public class Quickstart {
             }
             if (List.of("expired", "cancelled", "offline").contains(status.get("status"))) {
                 System.out.println("  这张码用不了了，重新取一张");
-                wx.accountQrcode(accountId, null);
+                saveQRCode((Map<?, ?>) wx.accountQrcode(accountId, null));
             }
             Thread.sleep(3000);
         }
@@ -82,4 +80,11 @@ public class Quickstart {
             }
         }
     }
+    static void saveQRCode(Map<?, ?> code) throws java.io.IOException {
+        String dataUrl = String.valueOf(code.get("qrcode"));
+        java.nio.file.Path path = java.nio.file.Path.of("welink-login.png");
+        java.nio.file.Files.write(path, java.util.Base64.getDecoder().decode(dataUrl.substring(dataUrl.indexOf(',') + 1)));
+        System.out.println("用微信扫描二维码文件：" + path.toAbsolutePath());
+    }
+
 }

@@ -19,6 +19,13 @@
 - **注意（易封号）**：调用不当容易被微信限制甚至封号，比如加好友、通过好友申请。照着提醒控制频率。
 - **建议缓存**：每调一次都是现去微信取，平台这边不留副本，而答案又很少变——通讯录、群成员、个人资料这类。取一次存到你自己那边，收到对应事件再更新；别每来一条消息就调一次，慢，也容易被当成脚本。
 
+## 通用约定
+
+- SDK 方法返回响应中的 `data`，不要再读取一次 `data`。
+- 服务地址填写根地址，不要带 `/v1`，路径前缀由 SDK 添加。
+- 普通请求默认超时 30 秒，SDK 不会自动重发。写操作超时后先确认结果，避免重复发送。
+- 完整参数结构可下载 [OpenAPI 文件](openapi.json)，回调字段见 [事件回调](WEBHOOK.md)。
+
 ## 目录
 
 - [实例](#实例)（17）
@@ -2340,21 +2347,43 @@ await wx.platform.events()
 GET /v1/accounts/{account_id}/stream
 ```
 
-通过 SSE 长连接实时接收该实例的事件，事件内容与 Webhook 推送的相同。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-
-<details><summary>各语言怎么调</summary>
+SSE 长连接，只接收连接建立后的实时事件。SDK 会跳过心跳注释并逐条解析 JSON；不会自动重连或补历史，断开后可用事件列表补查。普通 JSON 请求的 30 秒超时不用于限制 Node.js、Go 的流生命周期，Python 使用同一读超时，服务端的心跳保持连接活跃。
 
 ```python
-wx.platform_stream("acc_xxx")
+stream = wx.platform_stream("acc_xxx")
+try:
+    for event in stream:
+        print(event["type"], event.get("data"))
+finally:
+    stream.close()
 ```
 
 ```javascript
-await wx.platform.stream('acc_xxx')
+const stop = new AbortController()
+for await (const event of wx.platform.stream('acc_xxx', { signal: stop.signal })) {
+  console.log(event.type, event.data)
+  // 退出循环关闭连接，或在其他地方调用 stop.abort()。
+}
 ```
 
-</details>
+```go
+stream, err := wx.PlatformStream(ctx, "acc_xxx")
+if err != nil { log.Fatal(err) }
+defer stream.Close()
+for {
+    event, err := stream.Next()
+    if errors.Is(err, io.EOF) { break }
+    if err != nil { log.Fatal(err) }
+    fmt.Println(string(event))
+}
+// 也可以取消 ctx 来关闭连接。
+```
 
+```java
+try (WeLink.EventStream stream = wx.platformStream("acc_xxx")) {
+    Map<String, Object> event;
+    while ((event = stream.next()) != null) {
+        System.out.println(event.get("type"));
+    }
+}
+```

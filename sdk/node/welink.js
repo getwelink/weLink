@@ -11,8 +11,10 @@
  *
  * 只用了 Node 内置的 fetch（18 以上），没有依赖。
  *
- * 本文件由接口清单生成，不要手改。
+ * 接口方法按接口清单整理；请求、验签和事件流逻辑在本文件维护。
  */
+
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 export class WeLinkError extends Error {
   constructor(code, message, requestId = '', status = 0) {
@@ -31,7 +33,6 @@ export class WeLinkError extends Error {
  * 算出来的签名就对不上了。
  */
 export function verifyWebhook(secret, rawBody, signature) {
-  const { createHmac, timingSafeEqual } = require('node:crypto')
   const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex')
   const a = Buffer.from(expected)
   const b = Buffer.from(signature || '')
@@ -88,18 +89,81 @@ export class WeLink {
     } catch (err) {
       throw new WeLinkError(0, `连不上服务：${err.message}`)
     }
-    const text = await res.text()
+    let text
+    try { text = await res.text() }
+    catch (err) { throw new WeLinkError(0, `读响应失败：${err.message}`, '', res.status) }
     let envelope
     try {
       envelope = JSON.parse(text)
     } catch {
       throw new WeLinkError(0, `服务返回的不是 JSON（HTTP ${res.status}）`, '', res.status)
     }
-    if (envelope.code !== 0) {
+    if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) || !Number.isInteger(envelope.code)) {
+      throw new WeLinkError(0, '服务返回的不是预期的结构', '', res.status)
+    }
+    if (!res.ok || envelope.code !== 0) {
       throw new WeLinkError(envelope.code || 0, envelope.message || '上传失败',
         envelope.request_id || '', res.status)
     }
     return envelope.data
+  }
+
+  /** SSE 逐条读取；退出 for-await 或取消 signal 会关闭连接。 */
+  async *streamEvents(path, { signal } = {}) {
+    const controller = new AbortController()
+    const abort = () => controller.abort(signal?.reason)
+    if (signal?.aborted) abort()
+    else signal?.addEventListener('abort', abort, { once: true })
+    // 超时只限制建立连接，不终止正常运行的事件流。
+    const timer = setTimeout(() => controller.abort(), this.timeout)
+    let reader
+    try {
+      const res = await fetch(this.baseUrl + '/v1' + path, {
+        headers: { Authorization: 'Bearer ' + this.apiKey, Accept: 'text/event-stream' },
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      if (!res.ok) {
+        let body = {}
+        try { body = await res.json() } catch {}
+        throw new WeLinkError(body?.code || 0, body?.message || '无法打开事件流', body?.request_id || '', res.status)
+      }
+      if (!res.headers.get('content-type')?.startsWith('text/event-stream') || !res.body) {
+        throw new WeLinkError(0, '服务没有返回事件流', '', res.status)
+      }
+      reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = '', data = []
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let end
+        while ((end = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, end).replace(/\r$/, '')
+          buffer = buffer.slice(end + 1)
+          if (!line) {
+            if (data.length) {
+              let event
+              try { event = JSON.parse(data.join('\n')) }
+              catch { throw new WeLinkError(0, '事件内容不是 JSON') }
+              data = []
+              yield event
+            }
+          } else if (line.startsWith('data:')) {
+            data.push(line.slice(5).replace(/^ /, ''))
+          }
+        }
+      }
+    } catch (err) {
+      if (err instanceof WeLinkError) throw err
+      throw new WeLinkError(0, `事件流连接中断：${err.message}`)
+    } finally {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
+      if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock() }
+      controller.abort()
+    }
   }
 
   /** 直接调用一个接口。清单里还没有的新接口可以用它。 */
@@ -131,14 +195,19 @@ export class WeLink {
       throw new WeLinkError(0, `连不上服务：${err.message}`)
     }
 
-    const text = await res.text()
+    let text
+    try { text = await res.text() }
+    catch (err) { throw new WeLinkError(0, `读响应失败：${err.message}`, '', res.status) }
     let envelope
     try {
       envelope = JSON.parse(text)
     } catch {
       throw new WeLinkError(0, `服务返回的不是 JSON（HTTP ${res.status}）`, '', res.status)
     }
-    if (envelope.code !== 0) {
+    if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) || !Number.isInteger(envelope.code)) {
+      throw new WeLinkError(0, '服务返回的不是预期的结构', '', res.status)
+    }
+    if (!res.ok || envelope.code !== 0) {
       throw new WeLinkError(envelope.code ?? 0, envelope.message || '调用失败',
         envelope.request_id || '', res.status)
     }
@@ -1240,8 +1309,8 @@ function build(self) {
      * GET /v1/accounts/{account_id}/stream
      * @param {string} accountId 实例 ID，形如 acc_xxx
      */
-    stream(accountId) {
-      return self.call('GET', `/accounts/${encodeURIComponent(accountId)}/stream`)
+    stream(accountId, options = {}) {
+      return self.streamEvents(`/accounts/${encodeURIComponent(accountId)}/stream`, options)
     },
   }
 

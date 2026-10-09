@@ -39,3 +39,13 @@ if (!verifyWebhook(secret, rawBody, req.headers['x-orbit-signature'])) {
 
 `rawBody` 必须是原始字节。用 express 的话别让 `express.json()` 先把它吃掉 ——
 用 `express.raw({ type: 'application/json' })`。
+
+## 接入约定
+
+服务地址填写根地址，不带 `/v1`。SDK 返回响应中的 `data`；失败时保留错误码、HTTP 状态和请求 ID。普通请求默认超时 30 秒，写操作超时后先核对结果，SDK 不自动重发。
+
+红包与转账的字段位于事件的 `data.payment`，金额为 `amount`（两位小数字符串）和 `amount_fen`（整数分）；红包报文没有金额时这些字段会缺省。详见 [回调字段](../../docs/WEBHOOK.md#payment转账与红包)。
+
+## SSE 事件流
+
+长连接用法与关闭方式见 [四种语言示例](../../docs/API.md#事件流)。SSE 只接收实时事件，断开后由程序重连，历史记录使用事件列表补查。

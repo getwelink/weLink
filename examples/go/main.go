@@ -5,14 +5,16 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
-	"github.com/wechatLink/weLink/sdk/go/welink"
+	"github.com/getwelink/weLink/sdk/go/welink"
 )
 
 func main() {
@@ -41,8 +43,10 @@ func main() {
 		QRCode string `json:"qrcode"`
 	}
 	must(json.Unmarshal(raw, &code))
-	fmt.Println("二维码（把这个 data URL 贴到浏览器地址栏就能看到）：")
-	fmt.Println(code.QRCode[:80], "...")
+	image, err := base64.StdEncoding.DecodeString(strings.SplitN(code.QRCode, ",", 2)[1])
+	must(err)
+	must(os.WriteFile("welink-login.png", image, 0600))
+	fmt.Println("用微信扫描二维码文件：welink-login.png")
 
 	// 3. 等扫码。Mac 登录扫完还要过一次新设备验证，平台自动做，
 	//    会在 scanned 停一会儿，别急着取消。

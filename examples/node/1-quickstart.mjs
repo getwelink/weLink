@@ -5,6 +5,8 @@
  *
  * SDK 只用 Node 内置的 fetch，需要 Node 18 以上。
  */
+import { writeFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { WeLink, WeLinkError } from '../../sdk/node/welink.js'
 
 const wx = new WeLink({
@@ -20,10 +22,14 @@ const account = await wx.account.create({ proxy: process.env.WELINK_PROXY, name:
 const accountId = account.account_id
 console.log('实例已创建：', accountId)
 
+async function saveQRCode(code) {
+  await writeFile('welink-login.png', Buffer.from(code.qrcode.split(',')[1], 'base64'))
+  console.log('用微信扫描二维码文件：', resolve('welink-login.png'))
+}
+
 // 2. 取登录二维码，用微信扫它。
 let code = await wx.account.qrcode(accountId)
-console.log('二维码（把这个 data URL 贴到浏览器地址栏就能看到）：')
-console.log(code.qrcode.slice(0, 80), '...')
+await saveQRCode(code)
 
 // 3. 等扫码。Mac 登录扫完还要过一次新设备验证，平台自动做，
 //    会在 scanned 停一会儿，别急着取消。
@@ -35,6 +41,7 @@ while (true) {
   if (['expired', 'cancelled', 'offline'].includes(status.status)) {
     console.log('  这张码用不了了，重新取一张')
     code = await wx.account.qrcode(accountId)
+    await saveQRCode(code)
   }
   await sleep(3000)
 }

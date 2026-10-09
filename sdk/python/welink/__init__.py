@@ -8,7 +8,7 @@
 每个方法对应一个接口，返回的是响应里 data 字段的内容。
 调用失败抛 WeLinkError，上面带平台错误码和 request_id。
 
-本文件由接口清单生成，不要手改。
+接口方法按接口清单整理；请求、验签和事件流逻辑在本文件维护。
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import urllib.request
 from typing import Any, Optional
 
 __all__ = ["WeLink", "WeLinkError", "verify_webhook"]
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 class WeLinkError(Exception):
@@ -45,12 +45,14 @@ def verify_webhook(secret: str, body: bytes, signature: str) -> bool:
     import hashlib
     import hmac
 
+    if not isinstance(signature, str) or not signature.isascii():
+        return False
     expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature or "")
 
 
 class WeLink:
-    """一个 API Key 一个实例。无状态，可以长期持有、多线程共用。"""
+    """一个客户端使用一个 API Key，可以管理该 Key 下的多个实例。"""
 
     def __init__(self, api_key: str, base_url: str, timeout: float = 30.0):
         if not api_key:
@@ -92,16 +94,18 @@ class WeLink:
                 raw, status = resp.read(), resp.status
         except urllib.error.HTTPError as e:
             raw, status = e.read(), e.code
-        except urllib.error.URLError as e:
-            raise WeLinkError(0, "连不上服务：%s" % e.reason) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise WeLinkError(0, "连不上服务：%s" % getattr(e, "reason", str(e))) from e
 
         try:
             envelope = _json.loads(raw.decode("utf-8"))
         except ValueError:
             raise WeLinkError(0, "服务返回的不是 JSON（HTTP %s）" % status, status=status)
 
-        code = envelope.get("code")
-        if code != 0:
+        if not isinstance(envelope, dict) or type(envelope.get("code")) is not int:
+            raise WeLinkError(0, "服务返回的不是预期的结构", status=status)
+        code = envelope["code"]
+        if not 200 <= status < 300 or code != 0:
             raise WeLinkError(code or 0, envelope.get("message") or "调用失败",
                               envelope.get("request_id") or "", status)
         return envelope.get("data")
@@ -157,15 +161,17 @@ class WeLink:
                 raw, status = resp.read(), resp.status
         except urllib.error.HTTPError as e:
             raw, status = e.read(), e.code
-        except urllib.error.URLError as e:
-            raise WeLinkError(0, "连不上服务：%s" % e.reason) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise WeLinkError(0, "连不上服务：%s" % getattr(e, "reason", str(e))) from e
 
         try:
             envelope = _json.loads(raw.decode("utf-8"))
         except ValueError:
             raise WeLinkError(0, "服务返回的不是 JSON（HTTP %s）" % status, status=status)
-        code = envelope.get("code")
-        if code != 0:
+        if not isinstance(envelope, dict) or type(envelope.get("code")) is not int:
+            raise WeLinkError(0, "服务返回的不是预期的结构", status=status)
+        code = envelope["code"]
+        if not 200 <= status < 300 or code != 0:
             raise WeLinkError(code or 0, envelope.get("message") or "上传失败",
                               envelope.get("request_id") or "", status)
         return envelope.get("data")
@@ -207,7 +213,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}
         """
-        return self.call("GET", f"/accounts/{account_id}")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}")
 
     def account_qrcode(self, account_id: str, *, proxy: Optional[str] = None) -> Any:
         """获取登录二维码
@@ -219,7 +225,7 @@ class WeLink:
         参数：
           proxy            可选  要改用的代理网络，可以是socks5 地址或网络助手的网络ID。不传则沿用实例现有的代理网络。不能传空字符串，因为实例必须配置代理网络，不允许直连
         """
-        return self.call("POST", f"/accounts/{account_id}/login/qrcode",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/login/qrcode",
             body={"proxy": proxy},
         )
 
@@ -230,7 +236,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/login/status
         """
-        return self.call("GET", f"/accounts/{account_id}/login/status")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/login/status")
 
     def account_reconnect(self, account_id: str) -> Any:
         """重新连接
@@ -239,7 +245,7 @@ class WeLink:
 
         POST /v1/accounts/{account_id}/reconnect
         """
-        return self.call("POST", f"/accounts/{account_id}/reconnect")
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/reconnect")
 
     def account_logout(self, account_id: str) -> Any:
         """退出登录
@@ -248,7 +254,7 @@ class WeLink:
 
         POST /v1/accounts/{account_id}/logout
         """
-        return self.call("POST", f"/accounts/{account_id}/logout")
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/logout")
 
     def account_delete(self, account_id: str) -> Any:
         """删除实例
@@ -257,7 +263,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}
         """
-        return self.call("DELETE", f"/accounts/{account_id}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}")
 
     def account_profile(self, account_id: str) -> Any:
         """实例资料
@@ -268,7 +274,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/profile
         """
-        return self.call("GET", f"/accounts/{account_id}/profile")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/profile")
 
     def account_update_profile(self, account_id: str, *, city: Optional[str] = None, country: Optional[str] = None, nickname: Optional[str] = None, province: Optional[str] = None, sex: Optional[str] = None, signature: Optional[str] = None) -> Any:
         """修改个人资料
@@ -285,7 +291,7 @@ class WeLink:
           sex              可选  1 男，2 女，0 不显示（0 / 1 / 2）
           signature        可选  个性签名
         """
-        return self.call("PUT", f"/accounts/{account_id}/profile",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/profile",
             body={"nickname": nickname, "signature": signature, "sex": sex, "country": country, "province": province, "city": city},
         )
 
@@ -299,7 +305,7 @@ class WeLink:
         参数：
           url              必填  公网可下载的图片地址
         """
-        return self.call("PUT", f"/accounts/{account_id}/profile/avatar",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/profile/avatar",
             body={"url": url},
         )
 
@@ -312,7 +318,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/profile/qrcode
         """
-        return self.call("GET", f"/accounts/{account_id}/profile/qrcode")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/profile/qrcode")
 
     def account_privacy(self, account_id: str, *, enabled: bool, option: str) -> Any:
         """隐私设置
@@ -325,7 +331,7 @@ class WeLink:
           enabled          必填  true 开启，false 关闭
           option           必填  need_confirm_to_add：加我为好友时需要验证；findable_by_phone：可以通过手机号搜到我；findable_by_alias：可以通过微信号搜到我；recommend_contacts：向我推荐通讯录好友；strangers_see_ten：允许陌生人查看十条朋友圈；…（need_confirm_to_add / findable_by_phone / findable_by_alias / recommend_contacts / strangers_see_ten / visible_days）
         """
-        return self.call("PUT", f"/accounts/{account_id}/privacy",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/privacy",
             body={"option": option, "enabled": enabled},
         )
 
@@ -336,7 +342,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/devices
         """
-        return self.call("GET", f"/accounts/{account_id}/devices")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/devices")
 
     def account_device_signout(self, account_id: str, device_id: str) -> Any:
         """下线某个设备
@@ -345,7 +351,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/devices/{device_id}
         """
-        return self.call("DELETE", f"/accounts/{account_id}/devices/{device_id}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/devices/{urllib.parse.quote(str(device_id), safe='')}")
 
     def account_history(self, account_id: str, *, keep: bool) -> Any:
         """消息保存设置
@@ -357,7 +363,7 @@ class WeLink:
         参数：
           keep             必填  true 保存，false 不保存
         """
-        return self.call("PUT", f"/accounts/{account_id}/history",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/history",
             body={"keep": keep},
         )
 
@@ -373,7 +379,7 @@ class WeLink:
           events           可选  只推送这些类型的事件，留空则推送全部事件
           secret           可选  签名密钥，留空则保持不变
         """
-        return self.call("PUT", f"/accounts/{account_id}/webhook",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/webhook",
             body={"url": url, "secret": secret, "events": events},
         )
 
@@ -392,7 +398,7 @@ class WeLink:
         参数：
           cursor           可选  上一页返回的 next_cursor，首页留空
         """
-        return self.call("GET", f"/accounts/{account_id}/contacts",
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts",
             query={"cursor": cursor},
         )
 
@@ -408,7 +414,7 @@ class WeLink:
         参数：
           wxids            必填  要查询的 wxid 列表
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/batch",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/batch",
             body={"wxids": wxids},
         )
 
@@ -424,7 +430,7 @@ class WeLink:
         参数：
           wxids            必填  要查询的 wxid，一次最多 50 个
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/detail",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/detail",
             body={"wxids": wxids},
         )
 
@@ -440,7 +446,7 @@ class WeLink:
         参数：
           wxids            必填  要检测的 wxid，一次最多 20 个
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/check",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/check",
             body={"wxids": wxids},
         )
 
@@ -451,7 +457,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/contacts/external
         """
-        return self.call("GET", f"/accounts/{account_id}/contacts/external")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/external")
 
     def contact_external_sync(self, account_id: str) -> Any:
         """同步企微联系人
@@ -460,7 +466,7 @@ class WeLink:
 
         POST /v1/accounts/{account_id}/contacts/external/sync
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/external/sync")
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/external/sync")
 
     def contact_search(self, account_id: str, *, keyword: str) -> Any:
         """搜索用户
@@ -474,7 +480,7 @@ class WeLink:
         参数：
           keyword          必填  微信号或手机号
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/search",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/search",
             body={"keyword": keyword},
         )
 
@@ -492,7 +498,7 @@ class WeLink:
           greeting         可选  发给对方的验证消息
           scene            可选  申请来源，留空则使用默认值
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/add",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/add",
             body={"contact_token": contact_token, "greeting": greeting, "scene": scene},
         )
 
@@ -508,7 +514,7 @@ class WeLink:
         参数：
           friend_request_token 必填  好友申请事件中的 friend_request_token
         """
-        return self.call("POST", f"/accounts/{account_id}/contacts/accept",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/accept",
             body={"friend_request_token": friend_request_token},
         )
 
@@ -522,7 +528,7 @@ class WeLink:
         参数：
           remark           必填  新的备注名
         """
-        return self.call("PUT", f"/accounts/{account_id}/contacts/{wxid}/remark",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/{urllib.parse.quote(str(wxid), safe='')}/remark",
             body={"remark": remark},
         )
 
@@ -533,7 +539,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/contacts/{wxid}
         """
-        return self.call("DELETE", f"/accounts/{account_id}/contacts/{wxid}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/{urllib.parse.quote(str(wxid), safe='')}")
 
     def label_list(self, account_id: str) -> Any:
         """标签列表
@@ -544,7 +550,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/labels
         """
-        return self.call("GET", f"/accounts/{account_id}/labels")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/labels")
 
     def label_add(self, account_id: str, *, name: str) -> Any:
         """新建标签
@@ -556,7 +562,7 @@ class WeLink:
         参数：
           name             必填  标签名
         """
-        return self.call("POST", f"/accounts/{account_id}/labels",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/labels",
             body={"name": name},
         )
 
@@ -570,7 +576,7 @@ class WeLink:
         参数：
           name             必填  新的标签名
         """
-        return self.call("PUT", f"/accounts/{account_id}/labels/{label_id}",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/labels/{urllib.parse.quote(str(label_id), safe='')}",
             body={"name": name},
         )
 
@@ -581,7 +587,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/labels/{label_id}
         """
-        return self.call("DELETE", f"/accounts/{account_id}/labels/{label_id}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/labels/{urllib.parse.quote(str(label_id), safe='')}")
 
     def contact_labels(self, account_id: str, *, label_ids: list, wxids: list) -> Any:
         """设置联系人的标签
@@ -594,7 +600,7 @@ class WeLink:
           label_ids        必填  设置后这些联系人拥有的全部标签 ID，对应「标签列表」里的 ID。传空数组表示不带任何标签
           wxids            必填  要设置标签的联系人 wxid，一次最多 50 个
         """
-        return self.call("PUT", f"/accounts/{account_id}/contacts/labels",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/labels",
             body={"wxids": wxids, "label_ids": label_ids},
         )
 
@@ -611,7 +617,7 @@ class WeLink:
         参数：
           members          必填  初始成员的 wxid
         """
-        return self.call("POST", f"/accounts/{account_id}/groups",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups",
             body={"members": members},
         )
 
@@ -624,7 +630,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/groups/{group_id}
         """
-        return self.call("GET", f"/accounts/{account_id}/groups/{group_id}")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}")
 
     def group_members(self, account_id: str, group_id: str) -> Any:
         """群成员
@@ -635,7 +641,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/groups/{group_id}/members
         """
-        return self.call("GET", f"/accounts/{account_id}/groups/{group_id}/members")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/members")
 
     def group_member_detail(self, account_id: str, group_id: str, *, members: list) -> Any:
         """群成员详情
@@ -649,7 +655,7 @@ class WeLink:
         参数：
           members          必填  要查询的 wxid
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/{group_id}/members/detail",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/members/detail",
             body={"members": members},
         )
 
@@ -664,7 +670,7 @@ class WeLink:
           members          必填  要邀请的 wxid
           reason           可选  邀请说明
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/{group_id}/invite",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/invite",
             body={"members": members, "reason": reason},
         )
 
@@ -678,7 +684,7 @@ class WeLink:
         参数：
           members          必填  要移出的 wxid
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/{group_id}/members/remove",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/members/remove",
             body={"members": members},
         )
 
@@ -693,7 +699,7 @@ class WeLink:
           action           必填  grant 设为管理员，revoke 取消管理员，transfer 转让群主（转让群主时 members 只能填一个人）（grant / revoke / transfer）
           members          必填  目标成员的 wxid
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/{group_id}/admins",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/admins",
             body={"action": action, "members": members},
         )
 
@@ -707,7 +713,7 @@ class WeLink:
         参数：
           name             必填  新的群名称
         """
-        return self.call("PUT", f"/accounts/{account_id}/groups/{group_id}/name",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/name",
             body={"name": name},
         )
 
@@ -721,7 +727,7 @@ class WeLink:
         参数：
           content          必填  公告正文，留空表示清除
         """
-        return self.call("PUT", f"/accounts/{account_id}/groups/{group_id}/announcement",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/announcement",
             body={"content": content},
         )
 
@@ -735,7 +741,7 @@ class WeLink:
         参数：
           remark           必填  备注名，留空表示清除
         """
-        return self.call("PUT", f"/accounts/{account_id}/groups/{group_id}/remark",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/remark",
             body={"remark": remark},
         )
 
@@ -749,7 +755,7 @@ class WeLink:
         参数：
           nickname         必填  群内昵称
         """
-        return self.call("PUT", f"/accounts/{account_id}/groups/{group_id}/nickname",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/nickname",
             body={"nickname": nickname},
         )
 
@@ -763,7 +769,7 @@ class WeLink:
         参数：
           enabled          必填  true 保存，false 取消
         """
-        return self.call("PUT", f"/accounts/{account_id}/groups/{group_id}/kept",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/kept",
             body={"enabled": enabled},
         )
 
@@ -776,7 +782,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/groups/{group_id}/qrcode
         """
-        return self.call("GET", f"/accounts/{account_id}/groups/{group_id}/qrcode")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/qrcode")
 
     def group_join(self, account_id: str, *, url: str) -> Any:
         """通过链接进群
@@ -788,7 +794,7 @@ class WeLink:
         参数：
           url              必填  邀请链接
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/join",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/join",
             body={"url": url},
         )
 
@@ -802,7 +808,7 @@ class WeLink:
         参数：
           url              必填  邀请链接
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/preview",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/preview",
             body={"url": url},
         )
 
@@ -819,7 +825,7 @@ class WeLink:
           message_id       必填  邀请事件中的消息 ID
           ticket           必填  邀请事件中的凭据
         """
-        return self.call("POST", f"/accounts/{account_id}/groups/{group_id}/approve",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/groups/{urllib.parse.quote(str(group_id), safe='')}/approve",
             body={"inviter": inviter, "message_id": message_id, "ticket": ticket, "members": members},
         )
 
@@ -833,7 +839,7 @@ class WeLink:
         参数：
           enabled          必填  true 开启免打扰，false 恢复消息提醒
         """
-        return self.call("PUT", f"/accounts/{account_id}/chats/{chat_id}/muted",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/chats/{urllib.parse.quote(str(chat_id), safe='')}/muted",
             body={"enabled": enabled},
         )
 
@@ -847,7 +853,7 @@ class WeLink:
         参数：
           enabled          必填  true 置顶，false 取消
         """
-        return self.call("PUT", f"/accounts/{account_id}/chats/{chat_id}/pinned",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/chats/{urllib.parse.quote(str(chat_id), safe='')}/pinned",
             body={"enabled": enabled},
         )
 
@@ -866,7 +872,7 @@ class WeLink:
           to               必填  接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）
           mentions         可选  要 @ 的成员 wxid，仅在群聊中有效
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/text",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/text",
             body={"to": to, "content": content, "mentions": mentions},
         )
 
@@ -883,7 +889,7 @@ class WeLink:
           url              可选  可从公网下载的文件地址
           use_cache        可选  同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/image",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/image",
             body={"to": to, "url": url, "media_id": media_id, "use_cache": use_cache},
         )
 
@@ -902,7 +908,7 @@ class WeLink:
           url              可选  可从公网下载的文件地址
           use_cache        可选  同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/video",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/video",
             body={"to": to, "url": url, "media_id": media_id, "use_cache": use_cache, "duration": duration, "thumbnail_url": thumbnail_url},
         )
 
@@ -918,7 +924,7 @@ class WeLink:
           url              必填  可从公网下载的音频地址
           seconds          可选  时长（秒）
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/voice",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/voice",
             body={"to": to, "url": url, "seconds": seconds},
         )
 
@@ -936,7 +942,7 @@ class WeLink:
           url              可选  可从公网下载的文件地址
           use_cache        可选  同一个 url 之前发送过时，直接复用已上传的文件，不再重新上传。默认 true。只有地址不变但文件内容已更换时，才需要传 false
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/file",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/file",
             body={"to": to, "url": url, "media_id": media_id, "use_cache": use_cache, "filename": filename},
         )
 
@@ -952,7 +958,7 @@ class WeLink:
           length           必填  表情的字节数，取自同一条表情消息
           to               必填  接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/sticker",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/sticker",
             body={"to": to, "checksum": checksum, "length": length},
         )
 
@@ -971,7 +977,7 @@ class WeLink:
           source_name      可选  来源名称
           thumb_url        可选  封面图地址
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/link",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/link",
             body={"to": to, "title": title, "description": description, "url": url, "thumb_url": thumb_url, "source_name": source_name},
         )
 
@@ -992,7 +998,7 @@ class WeLink:
           source_name      可选  来源名称
           thumb_url        可选  封面图地址
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/miniapp",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/miniapp",
             body={"to": to, "app_id": app_id, "username": username, "title": title, "description": description, "path": path, "thumb_url": thumb_url, "source_name": source_name},
         )
 
@@ -1007,7 +1013,7 @@ class WeLink:
           message_id       必填  要转发的消息 ID
           to               必填  接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/forward",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/forward",
             body={"to": to, "message_id": message_id},
         )
 
@@ -1018,7 +1024,7 @@ class WeLink:
 
         POST /v1/accounts/{account_id}/messages/{message_id}/recall
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/{message_id}/recall")
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/{urllib.parse.quote(str(message_id), safe='')}/recall")
 
     def message_history(self, account_id: str, *, cursor: Optional[str] = None, limit: Optional[int] = None, peer: Optional[str] = None) -> Any:
         """消息记录
@@ -1032,7 +1038,7 @@ class WeLink:
           limit            可选  每页条数，最多 200，超过按 200 处理
           peer             可选  只返回与某个 wxid 或群的会话中的消息
         """
-        return self.call("GET", f"/accounts/{account_id}/messages",
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages",
             query={"peer": peer, "cursor": cursor, "limit": limit},
         )
 
@@ -1046,7 +1052,7 @@ class WeLink:
         参数：
           cursor           可选  上一次返回的 next_cursor，第一次留空
         """
-        return self.call("POST", f"/accounts/{account_id}/messages/sync",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/sync",
             body={"cursor": cursor},
         )
 
@@ -1057,7 +1063,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/messages/{message_id}
         """
-        return self.call("GET", f"/accounts/{account_id}/messages/{message_id}")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/{urllib.parse.quote(str(message_id), safe='')}")
 
     def favorite_list(self, account_id: str, *, cursor: Optional[str] = None) -> Any:
         """收藏列表
@@ -1071,7 +1077,7 @@ class WeLink:
         参数：
           cursor           可选  上一页返回的 next_cursor，首页留空
         """
-        return self.call("GET", f"/accounts/{account_id}/favorites",
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/favorites",
             query={"cursor": cursor},
         )
 
@@ -1084,7 +1090,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/favorites/{fav_id}
         """
-        return self.call("GET", f"/accounts/{account_id}/favorites/{fav_id}")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/favorites/{urllib.parse.quote(str(fav_id), safe='')}")
 
     def favorite_delete(self, account_id: str, fav_id: str) -> Any:
         """删除收藏
@@ -1093,7 +1099,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/favorites/{fav_id}
         """
-        return self.call("DELETE", f"/accounts/{account_id}/favorites/{fav_id}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/favorites/{urllib.parse.quote(str(fav_id), safe='')}")
 
 
     # --- 媒体 ----------------------------------------------------------------
@@ -1109,7 +1115,7 @@ class WeLink:
           file             必填  要上传的文件，multipart/form-data
           kind             可选  这个文件将作为哪种消息发送，不填则根据文件类型自动判断（image / video / voice / file）
         """
-        return self.upload(f"/accounts/{account_id}/media/upload", file,
+        return self.upload(f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/media/upload", file,
             filename=filename, content_type=content_type,
             fields={"kind": kind},
         )
@@ -1126,7 +1132,7 @@ class WeLink:
         参数：
           message_id       必填  带附件的消息 ID
         """
-        return self.call("POST", f"/accounts/{account_id}/media/download",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/media/download",
             body={"message_id": message_id},
         )
 
@@ -1141,7 +1147,7 @@ class WeLink:
           kind             必填  image、video 或 file
           url              必填  要发送的文件地址，必须与发送时填写的地址完全一致才算命中
         """
-        return self.call("POST", f"/accounts/{account_id}/media/cached",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/media/cached",
             body={"url": url, "kind": kind},
         )
 
@@ -1152,7 +1158,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/media/{media_id}
         """
-        return self.call("GET", f"/accounts/{account_id}/media/{media_id}")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/media/{urllib.parse.quote(str(media_id), safe='')}")
 
     def media_moment(self, account_id: str, moment_id: str, *, index: Optional[int] = None) -> Any:
         """下载动态媒体
@@ -1164,7 +1170,7 @@ class WeLink:
         参数：
           index            可选  图片序号，从 0 开始。视频动态会忽略这个值
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/{moment_id}/media/download",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}/media/download",
             body={"index": index},
         )
 
@@ -1183,7 +1189,7 @@ class WeLink:
         参数：
           cursor           可选  上一页返回的 next_cursor
         """
-        return self.call("GET", f"/accounts/{account_id}/moments",
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments",
             query={"cursor": cursor},
         )
 
@@ -1196,7 +1202,7 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/moments/{moment_id}
         """
-        return self.call("GET", f"/accounts/{account_id}/moments/{moment_id}")
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}")
 
     def moment_user(self, account_id: str, wxid: str, *, cursor: Optional[str] = None) -> Any:
         """某人的朋友圈
@@ -1210,7 +1216,7 @@ class WeLink:
         参数：
           cursor           可选  上一页返回的 next_cursor
         """
-        return self.call("GET", f"/accounts/{account_id}/moments/user/{wxid}",
+        return self.call("GET", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/user/{urllib.parse.quote(str(wxid), safe='')}",
             query={"cursor": cursor},
         )
 
@@ -1226,7 +1232,7 @@ class WeLink:
           mentions         可选  要 @ 的 wxid
           visibility       可选  可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/text",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/text",
             body={"content": content, "mentions": mentions, "visibility": visibility},
         )
 
@@ -1242,7 +1248,7 @@ class WeLink:
           content          可选  正文
           visibility       可选  可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/images",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/images",
             body={"content": content, "images": images, "visibility": visibility},
         )
 
@@ -1260,7 +1266,7 @@ class WeLink:
           duration         可选  时长（秒）
           visibility       可选  可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/video",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/video",
             body={"content": content, "video": video, "cover": cover, "duration": duration, "visibility": visibility},
         )
 
@@ -1275,7 +1281,7 @@ class WeLink:
           moment_id        必填  要转发的动态 ID
           visibility       可选  可见范围。mode 可选 public、private、allow、deny；选择 allow 或 deny 时，需要同时提供 wxids 或 tag_ids
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/forward",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/forward",
             body={"moment_id": moment_id, "visibility": visibility},
         )
 
@@ -1286,7 +1292,7 @@ class WeLink:
 
         POST /v1/accounts/{account_id}/moments/{moment_id}/like
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/{moment_id}/like")
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}/like")
 
     def moment_unlike(self, account_id: str, moment_id: str) -> Any:
         """取消赞
@@ -1295,7 +1301,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/moments/{moment_id}/like
         """
-        return self.call("DELETE", f"/accounts/{account_id}/moments/{moment_id}/like")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}/like")
 
     def moment_comment(self, account_id: str, moment_id: str, *, content: str, reply_to: Optional[int] = None) -> Any:
         """评论
@@ -1308,7 +1314,7 @@ class WeLink:
           content          必填  评论内容，最多 500 字
           reply_to         可选  要回复的评论 ID，留空表示直接评论这条动态
         """
-        return self.call("POST", f"/accounts/{account_id}/moments/{moment_id}/comments",
+        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}/comments",
             body={"content": content, "reply_to": reply_to},
         )
 
@@ -1319,7 +1325,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/moments/{moment_id}/comments/{comment_id}
         """
-        return self.call("DELETE", f"/accounts/{account_id}/moments/{moment_id}/comments/{comment_id}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}/comments/{urllib.parse.quote(str(comment_id), safe='')}")
 
     def moment_delete(self, account_id: str, moment_id: str) -> Any:
         """删除动态
@@ -1328,7 +1334,7 @@ class WeLink:
 
         DELETE /v1/accounts/{account_id}/moments/{moment_id}
         """
-        return self.call("DELETE", f"/accounts/{account_id}/moments/{moment_id}")
+        return self.call("DELETE", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}")
 
     def moment_privacy(self, account_id: str, moment_id: str, *, private: bool) -> Any:
         """设为私密 / 公开
@@ -1340,7 +1346,7 @@ class WeLink:
         参数：
           private          必填  true 表示仅自己可见，false 表示公开
         """
-        return self.call("PUT", f"/accounts/{account_id}/moments/{moment_id}/privacy",
+        return self.call("PUT", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/moments/{urllib.parse.quote(str(moment_id), safe='')}/privacy",
             body={"private": private},
         )
 
@@ -1385,7 +1391,36 @@ class WeLink:
 
         GET /v1/accounts/{account_id}/stream
         """
-        return self.call("GET", f"/accounts/{account_id}/stream")
+        path = "/accounts/" + urllib.parse.quote(str(account_id), safe="") + "/stream"
+        req = urllib.request.Request(self.base_url + "/v1" + path,
+            headers={"Authorization": "Bearer " + self.api_key, "Accept": "text/event-stream"})
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                if resp.headers.get_content_type() != "text/event-stream":
+                    raise WeLinkError(0, "服务没有返回事件流", status=resp.status)
+                data = []
+                for raw_line in resp:
+                    line = raw_line.decode("utf-8").rstrip("\r\n")
+                    if not line:
+                        if data:
+                            try:
+                                yield _json.loads("\n".join(data))
+                            except ValueError as e:
+                                raise WeLinkError(0, "事件内容不是 JSON") from e
+                            data = []
+                    elif line.startswith("data:"):
+                        value = line[5:]
+                        data.append(value[1:] if value.startswith(" ") else value)
+        except urllib.error.HTTPError as e:
+            try:
+                envelope = _json.loads(e.read().decode("utf-8"))
+            except ValueError:
+                envelope = {}
+            if not isinstance(envelope, dict): envelope = {}
+            raise WeLinkError(envelope.get("code") or 0, envelope.get("message") or "无法打开事件流",
+                              envelope.get("request_id") or "", e.code) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise WeLinkError(0, "事件流连接中断：%s" % getattr(e, "reason", str(e))) from e
 
 
 
