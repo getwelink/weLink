@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -65,9 +65,9 @@ func run() error {
 	return nil
 }
 func configuration() (*client, error) {
-	account, key := os.Getenv("WELINK_ACCOUNT_ID"), os.Getenv("WELINK_API_KEY")
-	if key == "" || !regexp.MustCompile(`^acc_[A-Za-z0-9_]{1,60}$`).MatchString(account) {
-		return nil, errors.New("set WELINK_API_KEY and WELINK_ACCOUNT_ID")
+	key := os.Getenv("WELINK_API_KEY")
+	if key == "" {
+		return nil, errors.New("set WELINK_API_KEY")
 	}
 	target, err := url.Parse(os.Getenv("WELINK_BASE_URL"))
 	if err != nil || target.Host == "" || target.User != nil || target.RawQuery != "" || target.Fragment != "" {
@@ -82,10 +82,11 @@ func configuration() (*client, error) {
 	default:
 		return nil, errors.New("invalid WELINK_BASE_URL scheme")
 	}
-	target.Path = strings.TrimRight(target.Path, "/") + "/v1/accounts/" + account + "/ws"
+	target.Path = strings.TrimRight(target.Path, "/") + "/v1/ws"
 	state := os.Getenv("WELINK_CURSOR_FILE")
 	if state == "" {
-		state = ".welink-ws-" + account + ".cursor"
+		sum := sha256.Sum256([]byte(key))
+		state = fmt.Sprintf(".welink-ws-user-%x.cursor", sum[:6])
 	}
 	if err := os.MkdirAll(filepath.Dir(state), 0700); err != nil {
 		return nil, err

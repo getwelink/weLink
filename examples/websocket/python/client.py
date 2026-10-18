@@ -2,11 +2,11 @@
 import json
 import os
 import random
-import re
+import hashlib
 import sys
 import time
 from pathlib import Path
-from urllib.parse import quote, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from websocket import create_connection, WebSocketBadStatusException
 
@@ -19,15 +19,15 @@ def handle_event(event):
 
 def run():
     key = os.environ.get("WELINK_API_KEY", "")
-    account = os.environ.get("WELINK_ACCOUNT_ID", "")
-    if not key or not re.fullmatch(r"acc_[A-Za-z0-9_]{1,60}", account):
-        raise ValueError("Set WELINK_API_KEY and WELINK_ACCOUNT_ID")
+    if not key:
+        raise ValueError("Set WELINK_API_KEY")
+    identity = hashlib.sha256(key.encode()).hexdigest()[:12]
     base = urlsplit(os.environ.get("WELINK_BASE_URL", ""))
     scheme = {"http": "ws", "https": "wss", "ws": "ws", "wss": "wss"}.get(base.scheme)
     if not scheme or not base.netloc or base.username or base.query or base.fragment:
         raise ValueError("WELINK_BASE_URL must be an http(s)/ws(s) server URL without credentials/query/fragment")
-    endpoint = urlunsplit((scheme, base.netloc, base.path.rstrip("/") + "/v1/accounts/" + quote(account) + "/ws", "", ""))
-    state = Path(os.environ.get("WELINK_CURSOR_FILE", ".welink-ws-" + account + ".cursor"))
+    endpoint = urlunsplit((scheme, base.netloc, base.path.rstrip("/") + "/v1/ws", "", ""))
+    state = Path(os.environ.get("WELINK_CURSOR_FILE", ".welink-ws-user-" + identity + ".cursor"))
     state.parent.mkdir(parents=True, exist_ok=True)
     cursor = state.read_text(encoding="utf-8").strip() if state.exists() else ""
     if len(cursor) > 64:

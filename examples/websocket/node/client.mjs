@@ -1,16 +1,17 @@
 // Node.js 18+; npm install && npm start. See ../README.md.
 import WebSocket from 'ws'
+import { createHash } from 'node:crypto'
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const key = process.env.WELINK_API_KEY
-const account = process.env.WELINK_ACCOUNT_ID || ''
-if (!key || !/^acc_[A-Za-z0-9_]{1,60}$/.test(account)) throw new Error('Set WELINK_API_KEY and WELINK_ACCOUNT_ID')
+if (!key) throw new Error('Set WELINK_API_KEY')
+const identity = createHash('sha256').update(key).digest('hex').slice(0, 12)
 const base = new URL(process.env.WELINK_BASE_URL || '')
 if (!['http:', 'https:', 'ws:', 'wss:'].includes(base.protocol) || base.username || base.password || base.search || base.hash) throw new Error('Invalid WELINK_BASE_URL')
 base.protocol = base.protocol.replace('http', 'ws')
-base.pathname = base.pathname.replace(/\/$/, '') + '/v1/accounts/' + account + '/ws'
-const state = process.env.WELINK_CURSOR_FILE || '.welink-ws-' + account + '.cursor'
+base.pathname = base.pathname.replace(/\/$/, '') + '/v1/ws'
+const state = process.env.WELINK_CURSOR_FILE || '.welink-ws-user-' + identity + '.cursor'
 await mkdir(dirname(state), { recursive: true })
 let cursor = ''
 try { cursor = (await readFile(state, 'utf8')).trim() } catch (err) { if (err.code !== 'ENOENT') throw err }

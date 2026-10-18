@@ -44,15 +44,15 @@ for (const language of selected) {
     ;(async () => {
       assert.equal(request.headers.authorization, 'Bearer ' + fixtureKey)
       const url = new URL(request.url, 'http://127.0.0.1')
-      assert.equal(url.pathname, '/v1/accounts/' + account + '/ws')
+      assert.equal(url.pathname, '/v1/ws')
       assert.equal(url.searchParams.get('cursor'), phase === 1 ? null : phase === 2 ? 'evt_fixture_one' : 'evt_fixture_two')
-      socket.send(JSON.stringify({ type: 'connected', account_id: account }))
+      socket.send(JSON.stringify({ type: 'connected', scope: 'user', user_id: 'usr_fixture' }))
       socket.ping('heartbeat')
       if (phase <= 2) {
         // Repeat the last event once; clients should not process it again.
         if (phase === 2) socket.send(JSON.stringify({ type: 'message.received', event_id: 'evt_fixture_one', account_id: account, data: { text: 'duplicate' } }))
         const id = phase === 1 ? 'evt_fixture_one' : 'evt_fixture_two'
-        socket.send(JSON.stringify({ type: 'message.received', event_id: id, account_id: account, data: { text: 'local fixture' } }))
+        socket.send(JSON.stringify({ type: 'message.received', event_id: id, account_id: phase === 1 ? account : 'acc_second_fixture', data: { text: 'local fixture' } }))
         await waitCursor(id)
         socket.close(1012, 'restart_fixture')
       } else {
@@ -64,7 +64,7 @@ for (const language of selected) {
   })
   const [command, args, cwd] = clients[language] || []
   assert.ok(command, 'Unknown test language')
-  const child = spawn(command, args, { cwd, env: { ...process.env, NO_PROXY: '127.0.0.1,localhost', WELINK_API_KEY: fixtureKey, WELINK_ACCOUNT_ID: account, WELINK_BASE_URL: `http://127.0.0.1:${server.address().port}`, WELINK_CURSOR_FILE: state }, windowsHide: true })
+  const child = spawn(command, args, { cwd, env: { ...process.env, NO_PROXY: '127.0.0.1,localhost', WELINK_API_KEY: fixtureKey, WELINK_BASE_URL: `http://127.0.0.1:${server.address().port}`, WELINK_CURSOR_FILE: state }, windowsHide: true })
   let output = ''
   child.stdout.on('data', data => output += data)
   child.stderr.on('data', data => output += data)
@@ -81,6 +81,7 @@ for (const language of selected) {
     assert.equal((await readFile(state, 'utf8')).trim(), 'evt_fixture_two')
     assert.equal((output.match(/"event_id"\s*:\s*"evt_fixture_one"/g) || []).length, 1, output)
     assert.equal((output.match(/"event_id"\s*:\s*"evt_fixture_two"/g) || []).length, 1, output)
+    assert.ok(output.includes('acc_second_fixture'), 'second instance event missing')
     assert.ok(!output.includes(fixtureKey), 'client leaked its key')
     console.log(language + ': events, Ping/Pong, reconnect, persisted cursor, deduplication and gap stop passed')
   } finally {

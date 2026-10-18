@@ -9,13 +9,13 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
+import java.security.MessageDigest;
 import java.util.Map;
 import java.util.concurrent.*;
 
 /** JDK 11+. Compile together with sdk/java/src/welink/WeLink.java. */
 public final class WebSocketClient {
     private final String key = System.getenv("WELINK_API_KEY");
-    private final String account = System.getenv("WELINK_ACCOUNT_ID");
     private final Path state;
     private final String endpoint;
     private String cursor;
@@ -25,13 +25,16 @@ public final class WebSocketClient {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     WebSocketClient() throws Exception {
-        if (key == null || key.isEmpty() || account == null || !account.matches("acc_[A-Za-z0-9_]{1,60}")) throw new IllegalArgumentException("Set WELINK_API_KEY and WELINK_ACCOUNT_ID");
+        if (key == null || key.isEmpty()) throw new IllegalArgumentException("Set WELINK_API_KEY");
         URI base = URI.create(System.getenv("WELINK_BASE_URL"));
         String scheme = base.getScheme();
         if (base.getHost() == null || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null || !("https".equals(scheme) || "http".equals(scheme) || "ws".equals(scheme) || "wss".equals(scheme))) throw new IllegalArgumentException("Invalid WELINK_BASE_URL");
-        endpoint = base.toString().replaceFirst("^http", "ws").replaceFirst("/+$", "") + "/v1/accounts/" + account + "/ws";
+        endpoint = base.toString().replaceFirst("^http", "ws").replaceFirst("/+$", "") + "/v1/ws";
         String filename = System.getenv("WELINK_CURSOR_FILE");
-        state = Paths.get(filename == null || filename.isEmpty() ? ".welink-ws-" + account + ".cursor" : filename).toAbsolutePath();
+        byte[] sum = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
+        StringBuilder identity = new StringBuilder();
+        for (int i = 0; i < 6; i++) identity.append(String.format("%02x", sum[i] & 0xff));
+        state = Paths.get(filename == null || filename.isEmpty() ? ".welink-ws-user-" + identity + ".cursor" : filename).toAbsolutePath();
         Files.createDirectories(state.getParent());
         cursor = Files.exists(state) ? Files.readString(state, StandardCharsets.UTF_8).trim() : "";
         if (cursor.length() > 64) throw new IllegalArgumentException("Invalid cursor file");
