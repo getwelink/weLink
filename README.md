@@ -41,6 +41,7 @@
 - [能做什么](#能做什么)
 - [五分钟上手](#五分钟上手)
 - [四种语言的微信 SDK](#四种语言的微信-sdk)
+- [WebSocket 实时推送示例](#websocket-实时推送示例)
 - [照着学的路径](#照着学的路径)
 - [一次调用长什么样](#一次调用长什么样)
 - [可申请试用与长期维护](#可申请试用与长期维护)
@@ -52,7 +53,7 @@
 一个微信号能做的事，WeLink 把它们做成了 HTTP 接口。
 
 扫码把号挂上来，之后你的程序就能像用任何一个 API 一样用它：发消息、读通讯录、
-建群、发朋友圈。别人发来的消息和各种变动，会实时推到你填的地址上。
+建群、发朋友圈。别人发来的消息和各种变动，可通过 WebSocket 实时接收，也可推送到你配置的 Webhook 地址。
 
 没有 UI 自动化，不用一直开着一台电脑，也不用碰微信协议那一摊。你只面对 JSON。
 
@@ -214,6 +215,18 @@ wx.messageText("acc_xxx", Map.of("to", "wxid_abc", "content", "在吗"));
 ```
 
 </details>
+
+---
+
+## WebSocket 实时推送示例
+
+无需提供公网回调地址，程序主动连接网关即可接收微信消息和实例事件。提供 Python、Node.js、Go、Java 示例，包含心跳、断线重连、游标保存与缺口处理。
+
+- [使用教程与源码](examples/websocket/README.md)
+- [Python](examples/websocket/python/client.py) · [Node.js](examples/websocket/node/client.mjs) · [Go](examples/websocket/go/main.go) · [Java](examples/websocket/java/WebSocketClient.java)
+- [下载完整仓库 ZIP](https://github.com/getwelink/weLink/archive/refs/heads/main.zip)
+
+HTTPS 入口使用 wss，HTTP 入口使用 ws。需要所连接网关已开放 WebSocket 接口，旧版本请先更新服务端。
 
 ---
 

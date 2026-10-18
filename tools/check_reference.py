@@ -44,6 +44,8 @@ for obj in reference['events']['message']['objects']:
         assert '`'+field['name']+'`' in webhook, field['name']
 
 for doc in ROOT.rglob('*.md'):
+    if any(part in {'node_modules', '.venv', '.git', 'out'} for part in doc.relative_to(ROOT).parts):
+        continue
     for destination in re.findall(r'\]\(([^)]+)\)', doc.read_text(encoding='utf-8')):
         if '://' in destination or destination.startswith('#'):
             continue

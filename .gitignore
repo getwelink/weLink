@@ -12,3 +12,8 @@ node_modules/
 .env
 
 welink-login.png
+
+# WebSocket 示例运行状态
+.venv/
+*.cursor
+*.cursor.tmp
