@@ -791,7 +791,7 @@ func (c *Client) ChatPinned(ctx context.Context, accountId string, chatId string
 //
 //	content          必填  消息正文
 //	to               必填  接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）
-//	mentions         可选  要 @ 的成员 wxid，仅在群聊中有效
+//	mentions         可选  要 @ 的成员 wxid 数组；@所有人传 ["notify@all"]，仅在群聊中有效
 func (c *Client) MessageText(ctx context.Context, accountId string, args M) (json.RawMessage, error) {
 	return c.Call(ctx, "POST", "/accounts/"+url.PathEscape(accountId)+"/messages/text", nil, take(args, "to", "content", "mentions"))
 }

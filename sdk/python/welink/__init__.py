@@ -870,7 +870,7 @@ class WeLink:
         参数：
           content          必填  消息正文
           to               必填  接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）
-          mentions         可选  要 @ 的成员 wxid，仅在群聊中有效
+          mentions         可选  要 @ 的成员 wxid 数组；@所有人传 ["notify@all"]，仅在群聊中有效
         """
         return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/messages/text",
             body={"to": to, "content": content, "mentions": mentions},

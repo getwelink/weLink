@@ -845,7 +845,7 @@ function build(self) {
      * @param {object} opts
      * @param {string} [opts.content] 必填 消息正文
      * @param {string} [opts.to] 必填 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手）
-     * @param {Array} [opts.mentions] 要 @ 的成员 wxid，仅在群聊中有效
+     * @param {Array} [opts.mentions] 要 @ 的成员 wxid 数组；@所有人传 ["notify@all"]，仅在群聊中有效
      */
     text(accountId, opts = {}) {
       return self.call('POST', `/accounts/${encodeURIComponent(accountId)}/messages/text`, { body: pick(opts, ['to', 'content', 'mentions']) })

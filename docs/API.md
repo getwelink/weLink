@@ -1374,14 +1374,26 @@ await wx.chat.pinned('acc_xxx', '...', { enabled: true })
 POST /v1/accounts/{account_id}/messages/text
 ```
 
-发送一条文字消息。在群里发送时可以 @ 群成员。
+发送一条文字消息。群聊中可通过 mentions 指定成员；@所有人传 mentions: ["notify@all"]，并在 content 中填写显示文字，例如 @所有人 请查看通知。仅填写正文中的 @所有人 不会产生群提醒。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |
 | `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
 | `to` | 请求体 | string | 是 | 接收方：好友的 wxid、群 ID，或 filehelper（自己的文件传输助手） |
 | `content` | 请求体 | string | 是 | 消息正文 |
-| `mentions` | 请求体 | array | 否 | 要 @ 的成员 wxid，仅在群聊中有效 |
+| `mentions` | 请求体 | array | 否 | 要 @ 的成员 wxid 数组；@所有人传 ["notify@all"]，仅在群聊中有效 |
+
+**群聊 @所有人示例：**
+
+```json
+{
+  "to": "群ID@chatroom",
+  "content": "@所有人 请查看通知",
+  "mentions": ["notify@all"]
+}
+```
+
+`to` 替换为实际群 ID；只在正文里写 `@所有人` 不会触发群提醒。@ 指定成员时，`mentions` 传对应成员的 wxid 数组。
 
 <details><summary>各语言怎么调</summary>
 

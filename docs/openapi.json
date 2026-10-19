@@ -4053,7 +4053,7 @@
     },
     "/v1/accounts/{account_id}/messages/text": {
       "post": {
-        "description": "发送一条文字消息。在群里发送时可以 @ 群成员。",
+        "description": "发送一条文字消息。群聊中可通过 mentions 指定成员；@所有人传 mentions: [\"notify@all\"]，并在 content 中填写显示文字，例如 @所有人 请查看通知。仅填写正文中的 @所有人 不会产生群提醒。",
         "operationId": "message.text",
         "parameters": [
           {
@@ -4082,7 +4082,7 @@
                     "type": "string"
                   },
                   "mentions": {
-                    "description": "要 @ 的成员 wxid，仅在群聊中有效",
+                    "description": "要 @ 的成员 wxid 数组；@所有人传 [\"notify@all\"]，仅在群聊中有效",
                     "example": [],
                     "items": {
                       "type": "string"
