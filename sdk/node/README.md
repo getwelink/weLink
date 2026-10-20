@@ -32,7 +32,8 @@ await wx.call('POST', '/accounts/acc_xxx/some/new/route', { body: { a: 1 } })
 ```javascript
 import { verifyWebhook } from './welink.js'
 
-if (!verifyWebhook(secret, rawBody, req.headers['x-orbit-signature'])) {
+const signature = req.headers['x-welink-signature'] || req.headers['x-orbit-signature'] || ''
+if (!verifyWebhook(secret, rawBody, signature)) {
   return res.writeHead(403).end()
 }
 ```

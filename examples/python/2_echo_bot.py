@@ -24,7 +24,8 @@ class Hook(BaseHTTPRequestHandler):
         raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
 
         # 先验签再干活。没设密钥就没有这个头，那就没得验。
-        if SECRET and not verify_webhook(SECRET, raw, self.headers.get("X-Orbit-Signature", "")):
+        signature = self.headers.get("X-WeLink-Signature") or self.headers.get("X-Orbit-Signature", "")
+        if SECRET and not verify_webhook(SECRET, raw, signature):
             self.send_response(403)
             self.end_headers()
             return

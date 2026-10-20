@@ -15,11 +15,13 @@ Webhook 与事件列表使用相同的报文结构。SSE 只推送连接建立�
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `X-Orbit-Event` | string | 事件类型。无需解析 body 即可按类型分发处理 |
-| `X-Orbit-Delivery` | string | 本次投递的 ID，重试时保持不变 |
-| `X-Orbit-Timestamp` | integer | 发出时间，Unix 秒级时间戳 |
-| `X-Orbit-Attempt` | integer | 第几次投递尝试，首次为 1 |
-| `X-Orbit-Signature` | string | sha256=HMAC-SHA256(密钥, 原始 body)，仅在设置了密钥时才有 |
+| `X-WeLink-Event` | string | 事件类型。无需解析 body 即可按类型分发处理 |
+| `X-WeLink-Delivery` | string | 本次投递的 ID，重试时保持不变 |
+| `X-WeLink-Timestamp` | integer | 发出时间，Unix 秒级时间戳 |
+| `X-WeLink-Attempt` | integer | 第几次投递尝试，首次为 1 |
+| `X-WeLink-Signature` | string | sha256=HMAC-SHA256(密钥, 原始 body)，仅在设置了密钥时才有 |
+
+新接入请使用 `X-WeLink-*`。兼容期间同时发送同值的旧版 `X-Orbit-*` 请求头，原密钥和验签算法不变；SDK 示例优先读取新名称，并兼容旧版本服务。
 
 ## 报文结构
 

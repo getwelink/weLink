@@ -39,7 +39,9 @@ raw, err := wx.Call(ctx, "POST", "/accounts/acc_xxx/some/new/route", nil, welink
 ## 收事件
 
 ```go
-if !welink.VerifyWebhook(secret, rawBody, r.Header.Get("X-Orbit-Signature")) {
+signature := r.Header.Get("X-WeLink-Signature")
+if signature == "" { signature = r.Header.Get("X-Orbit-Signature") }
+if !welink.VerifyWebhook(secret, rawBody, signature) {
     w.WriteHeader(http.StatusForbidden)
     return
 }

@@ -28,7 +28,8 @@ createServer(async (req, res) => {
   for await (const chunk of req) chunks.push(chunk)
   const raw = Buffer.concat(chunks)
 
-  if (SECRET && !verifyWebhook(SECRET, raw, req.headers['x-orbit-signature'])) {
+  const signature = req.headers['x-welink-signature'] || req.headers['x-orbit-signature'] || ''
+  if (SECRET && !verifyWebhook(SECRET, raw, signature)) {
     res.writeHead(403).end()
     return
   }

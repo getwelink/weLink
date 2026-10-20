@@ -39,7 +39,8 @@ wx.call("POST", "/accounts/acc_xxx/some/new/route", body={"a": 1})
 ```python
 from welink import verify_webhook
 
-if not verify_webhook(secret, raw_body, request.headers["X-Orbit-Signature"]):
+signature = request.headers.get("X-WeLink-Signature") or request.headers.get("X-Orbit-Signature", "")
+if not verify_webhook(secret, raw_body, signature):
     abort(403)
 ```
 

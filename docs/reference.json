@@ -3680,27 +3680,27 @@
     ],
     "headers": [
       {
-        "name": "X-Orbit-Event",
+        "name": "X-WeLink-Event",
         "type": "string",
         "note": "事件类型。无需解析 body 即可按类型分发处理"
       },
       {
-        "name": "X-Orbit-Delivery",
+        "name": "X-WeLink-Delivery",
         "type": "string",
         "note": "本次投递的 ID，重试时保持不变"
       },
       {
-        "name": "X-Orbit-Timestamp",
+        "name": "X-WeLink-Timestamp",
         "type": "integer",
         "note": "发出时间，Unix 秒级时间戳"
       },
       {
-        "name": "X-Orbit-Attempt",
+        "name": "X-WeLink-Attempt",
         "type": "integer",
         "note": "第几次投递尝试，首次为 1"
       },
       {
-        "name": "X-Orbit-Signature",
+        "name": "X-WeLink-Signature",
         "type": "string",
         "note": "sha256=HMAC-SHA256(密钥, 原始 body)，仅在设置了密钥时才有"
       }

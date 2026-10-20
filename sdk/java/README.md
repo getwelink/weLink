@@ -39,7 +39,9 @@ wx.call("POST", "/accounts/acc_xxx/some/new/route", null, Map.of("a", 1));
 ## 收事件
 
 ```java
-if (!WeLink.verifyWebhook(secret, rawBody, request.getHeader("X-Orbit-Signature"))) {
+String signature = request.getHeader("X-WeLink-Signature");
+if (signature == null) signature = request.getHeader("X-Orbit-Signature");
+if (!WeLink.verifyWebhook(secret, rawBody, signature)) {
     response.setStatus(403);
     return;
 }

@@ -22,7 +22,9 @@ parts = ['# 事件回调',
          'Webhook 与事件列表使用相同的报文结构。SSE 只推送连接建立后的实时事件，历史记录使用事件列表查询。', intro,
          '## 接入顺序',
          '1. 在控制台为实例配置 Webhook 地址和密钥。\n2. 使用原始请求体校验签名，再解析 JSON。\n3. 以 `event_id` 去重，将任务放入队列，再尽快返回 2xx。\n4. 未成功处理时保留事件，按业务要求重试；SDK 不会自动重发消息。',
-         '## 请求头', fields(events['headers']), '## 报文结构', fields(events['envelope']),
+         '## 请求头', fields(events['headers']),
+         '新接入请使用 `X-WeLink-*`。兼容期间同时发送同值的旧版 `X-Orbit-*` 请求头，原密钥和验签算法不变；SDK 示例优先读取新名称，并兼容旧版本服务。',
+         '## 报文结构', fields(events['envelope']),
          '## 验签', '签名是 `"sha256=" + HMAC-SHA256(密钥, 原始请求体)` 的小写十六进制。不要先解析再重新序列化 JSON。',
          '''```python
 from welink import verify_webhook
