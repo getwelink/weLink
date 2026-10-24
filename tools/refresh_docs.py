@@ -16,7 +16,7 @@ def fields(rows):
     return '\n'.join(result)
 
 
-intro = '> 项目长期维护，可申请试用。试用申请和接入咨询请通过 [首页 QQ](../README.md#可申请试用与长期维护) 联系。'
+intro = '> 项目长期维护，可申请试用。公开联系方式暂时关闭。'
 events = reference['events']
 parts = ['# 事件回调',
          'Webhook 与事件列表使用相同的报文结构。SSE 只推送连接建立后的实时事件，历史记录使用事件列表查询。', intro,
