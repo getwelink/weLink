@@ -311,7 +311,15 @@ Content-Type: application/json
 
 代码、文档、四种语言的 SDK 就在这个仓库里，可直接查阅和使用。
 
-公开联系方式暂时关闭。
+试用申请、接入咨询和使用帮助，请通过 QQ 联系，并简单说明用途。
+
+<div align="center">
+
+<a href="https://qm.qq.com/q/SJ0idqZKou"><img src="assets/qq-contact-soft.png" width="280" alt="QQ 联系二维码"></a>
+
+QQ：**2824382313** · [点击添加](https://qm.qq.com/q/SJ0idqZKou)
+
+</div>
 
 ---
 
