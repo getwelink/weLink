@@ -60,7 +60,6 @@ boolean valid = WeLink.verifyWebhook(secret, rawBody, signature);
 
 | 类型 | 名称 | 触发条件 |
 | --- | --- | --- |
-
 | `message.received` | 收到消息 | 收到别人发来的一条消息 |
 | `message.sent` | 自己发出的消息 | 这个微信号在手机或其他设备上发出了消息，此时 self 为 true。通过本平台接口发送的消息不会推送这个事件，因为接口调用时已经同步返回了结果 |
 | `message.revoked` | 消息被撤回 | 有人撤回了一条消息，此时 type 为 revoke |
@@ -100,7 +99,6 @@ boolean valid = WeLink.verifyWebhook(secret, rawBody, signature);
 
 | type | 名称 | 附带对象 |
 | --- | --- | --- |
-
 | `text` | 文字 | — |
 | `image` | 图片 | `media` |
 | `voice` | 语音 | `media` |
