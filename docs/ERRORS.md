@@ -6,7 +6,6 @@
 
 | code | HTTP | 名称 | 说明 |
 | --- | --- | --- | --- |
-
 | `0` | 200 | OK | ok |
 | `40000` | 400 | INVALID_PARAM | 参数错误 |
 | `40100` | 401 | UNAUTHORIZED | API Key 无效或已禁用 |

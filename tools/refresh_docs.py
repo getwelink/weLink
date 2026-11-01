@@ -43,9 +43,9 @@ valid := welink.VerifyWebhook(secret, rawBody, signature)
 ```java
 boolean valid = WeLink.verifyWebhook(secret, rawBody, signature);
 ```''', '## 事件类型', '| 类型 | 名称 | 触发条件 |\n| --- | --- | --- |']
-parts.append('\n'.join('| `%s` | %s | %s |' % (r['type'], cell(r['name']), cell(r['when'])) for r in events['events']))
+parts[-1] += '\n' + '\n'.join('| `%s` | %s | %s |' % (r['type'], cell(r['name']), cell(r['when'])) for r in events['events'])
 parts += ['## 消息公共字段', fields(events['message']['common']), '## 消息类型', '| type | 名称 | 附带对象 |\n| --- | --- | --- |']
-parts.append('\n'.join('| `%s` | %s | %s |' % (r['kind'], cell(r['name']), '`%s`' % r['carries'] if r.get('carries') else '—') for r in events['message']['kinds']))
+parts[-1] += '\n' + '\n'.join('| `%s` | %s | %s |' % (r['kind'], cell(r['name']), '`%s`' % r['carries'] if r.get('carries') else '—') for r in events['message']['kinds'])
 for obj in events['message']['objects']:
     parts += ['## %s：%s' % (obj['name'], obj['title'])]
     if obj.get('note'):
@@ -70,7 +70,7 @@ else:
 rows = ['# 错误码',
         '同时判断 HTTP 状态和平台 `code`。SDK 调用失败会抛出或返回各语言的错误类型，保留错误码、HTTP 状态和 `request_id`。', intro,
         '| code | HTTP | 名称 | 说明 |\n| --- | --- | --- | --- |']
-rows.append('\n'.join('| `%s` | %s | %s | %s |' % (r['code'], r['http_status'], r['name'], cell(r['message'])) for r in reference['errors']))
+rows[-1] += '\n' + '\n'.join('| `%s` | %s | %s | %s |' % (r['code'], r['http_status'], r['name'], cell(r['message'])) for r in reference['errors'])
 rows += ['## 超时与重试',
          'SDK 的普通请求默认超时为 30 秒，不会自动重发。发送消息、添加好友等写操作超时后，服务端可能已经处理成功；先核对结果，避免重复执行。需要幂等重试时，可在自行构造的 HTTP 请求中带上同一操作的 `Idempotency-Key`，不同操作不能共用该值。',
          'SSE 使用独立的流读取接口，生命周期由调用方管理。断开后重连并按 `event_id` 去重，需要补历史时使用事件列表。']
