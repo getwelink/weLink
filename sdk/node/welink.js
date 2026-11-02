@@ -486,34 +486,8 @@ function build(self) {
     externalSync(accountId) {
       return self.call('POST', `/accounts/${encodeURIComponent(accountId)}/contacts/external/sync`)
     },
-    /**
-     * 搜索用户 —— 按微信号或手机号搜索用户，返回可用于添加好友的 contact_token。
-     *
-     * 建议缓存：保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。
-     *
-     * POST /v1/accounts/{account_id}/contacts/search
-     * @param {string} accountId 实例 ID，形如 acc_xxx
-     * @param {object} opts
-     * @param {string} [opts.keyword] 必填 微信号或手机号
-     */
-    search(accountId, opts = {}) {
-      return self.call('POST', `/accounts/${encodeURIComponent(accountId)}/contacts/search`, { body: pick(opts, ['keyword']) })
-    },
-    /**
-     * 添加好友 —— 用搜索得到的 contact_token 发起好友申请。**这个接口响应较慢**：微信需要 5～20 秒才返回结果，实测平均 9 秒，最慢 16 秒。客户端超时时间请至少设为 30 秒。请求超时后不要直接重发，因为请求很可能已经发送成功。需要重试时，请带上 Idempotency-Key。
-     *
-     * 注意（易封号）：敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。
-     *
-     * POST /v1/accounts/{account_id}/contacts/add
-     * @param {string} accountId 实例 ID，形如 acc_xxx
-     * @param {object} opts
-     * @param {string} [opts.contact_token] 必填 搜索结果中的 contact_token
-     * @param {string} [opts.greeting] 发给对方的验证消息
-     * @param {string} [opts.scene] 申请来源，留空则使用默认值
-     */
-    add(accountId, opts = {}) {
-      return self.call('POST', `/accounts/${encodeURIComponent(accountId)}/contacts/add`, { body: pick(opts, ['contact_token', 'greeting', 'scene']) })
-    },
+
+
     /**
      * 通过好友申请 —— 通过他人的好友申请。需要传入好友申请事件中的 friend_request_token。
      *
@@ -540,7 +514,7 @@ function build(self) {
       return self.call('PUT', `/accounts/${encodeURIComponent(accountId)}/contacts/${encodeURIComponent(wxid)}/remark`, { body: pick(opts, ['remark']) })
     },
     /**
-     * 删除好友 —— 将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。如需恢复，需要重新添加好友。
+     * 删除好友 —— 将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。
      *
      * DELETE /v1/accounts/{account_id}/contacts/{wxid}
      * @param {string} accountId 实例 ID，形如 acc_xxx

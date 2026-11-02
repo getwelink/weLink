@@ -46,7 +46,7 @@ test('验签、请求参数、错误响应及 SSE', async () => {
 })
 
 
-test('88 个接口的方法、路径及参数覆盖', async () => {
+test('公开接口的方法、路径及参数覆盖', async () => {
   const { readFile } = await import('node:fs/promises')
   const reference = JSON.parse(await readFile(new URL('../docs/reference.json', import.meta.url), 'utf8'))
   const wx = new WeLink({apiKey:'key_test',baseUrl:'http://localhost'})

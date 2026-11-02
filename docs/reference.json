@@ -801,86 +801,6 @@
       ]
     },
     {
-      "id": "contact.search",
-      "group": "联系人",
-      "name": "搜索用户",
-      "method": "POST",
-      "path": "/accounts/{account_id}/contacts/search",
-      "description": "按微信号或手机号搜索用户，返回可用于添加好友的 contact_token。",
-      "params": [
-        {
-          "name": "account_id",
-          "in": "path",
-          "type": "string",
-          "required": true,
-          "example": "",
-          "description": "实例 ID，形如 acc_xxx"
-        },
-        {
-          "name": "keyword",
-          "in": "body",
-          "type": "string",
-          "required": true,
-          "example": "wxid_example",
-          "description": "微信号或手机号"
-        }
-      ],
-      "example": {},
-      "needs_account": true,
-      "tags": [
-        "read"
-      ],
-      "cache_advice": "保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。"
-    },
-    {
-      "id": "contact.add",
-      "group": "联系人",
-      "name": "添加好友",
-      "method": "POST",
-      "path": "/accounts/{account_id}/contacts/add",
-      "description": "用搜索得到的 contact_token 发起好友申请。**这个接口响应较慢**：微信需要 5～20 秒才返回结果，实测平均 9 秒，最慢 16 秒。客户端超时时间请至少设为 30 秒。请求超时后不要直接重发，因为请求很可能已经发送成功。需要重试时，请带上 Idempotency-Key。",
-      "params": [
-        {
-          "name": "account_id",
-          "in": "path",
-          "type": "string",
-          "required": true,
-          "example": "",
-          "description": "实例 ID，形如 acc_xxx"
-        },
-        {
-          "name": "contact_token",
-          "in": "body",
-          "type": "string",
-          "required": true,
-          "example": "",
-          "description": "搜索结果中的 contact_token"
-        },
-        {
-          "name": "greeting",
-          "in": "body",
-          "type": "string",
-          "required": false,
-          "example": "你好",
-          "description": "发给对方的验证消息"
-        },
-        {
-          "name": "scene",
-          "in": "body",
-          "type": "string",
-          "required": false,
-          "example": "",
-          "description": "申请来源，留空则使用默认值"
-        }
-      ],
-      "example": {},
-      "needs_account": true,
-      "tags": [
-        "send"
-      ],
-      "caution": "敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。"
-    },
-    {
       "id": "contact.accept",
       "group": "联系人",
       "name": "通过好友申请",
@@ -957,7 +877,7 @@
       "name": "删除好友",
       "method": "DELETE",
       "path": "/accounts/{account_id}/contacts/{wxid}",
-      "description": "将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。如需恢复，需要重新添加好友。",
+      "description": "将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。",
       "params": [
         {
           "name": "account_id",
@@ -3552,7 +3472,7 @@
       {
         "type": "friend.request",
         "name": "好友申请",
-        "when": "有人申请添加好友，此时 type 为 friend_request",
+        "when": "收到他人的好友申请，此时 type 为 friend_request",
         "same_as": "message"
       },
       {
@@ -4440,13 +4360,13 @@
     {
       "code": 52100,
       "name": "CONTACT_NOT_FOUND",
-      "message": "未搜索到该用户",
+      "message": "未找到该用户",
       "http_status": 200
     },
     {
       "code": 52101,
       "name": "FRIEND_REQUEST_LIMITED",
-      "message": "添加好友过于频繁或已受限",
+      "message": "好友请求过于频繁或已受限",
       "http_status": 200
     },
     {
