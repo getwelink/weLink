@@ -624,62 +624,6 @@ await wx.contact.externalSync('acc_xxx')
 
 </details>
 
-### 搜索用户
-
-```
-POST /v1/accounts/{account_id}/contacts/search
-```
-
-按微信号或手机号搜索用户，返回可用于添加好友的 contact_token。
-
-> **建议缓存**：保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `keyword` | 请求体 | string | 是 | 微信号或手机号 |
-
-<details><summary>各语言怎么调</summary>
-
-```python
-wx.contact_search("acc_xxx", keyword="wxid_example")
-```
-
-```javascript
-await wx.contact.search('acc_xxx', { keyword: 'wxid_example' })
-```
-
-</details>
-
-### 添加好友
-
-```
-POST /v1/accounts/{account_id}/contacts/add
-```
-
-> **注意（易封号）**：敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。
-
-用搜索得到的 contact_token 发起好友申请。**这个接口响应较慢**：微信需要 5～20 秒才返回结果，实测平均 9 秒，最慢 16 秒。客户端超时时间请至少设为 30 秒。请求超时后不要直接重发，因为请求很可能已经发送成功。需要重试时，请带上 Idempotency-Key。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `contact_token` | 请求体 | string | 是 | 搜索结果中的 contact_token |
-| `greeting` | 请求体 | string | 否 | 发给对方的验证消息 |
-| `scene` | 请求体 | string | 否 | 申请来源，留空则使用默认值 |
-
-<details><summary>各语言怎么调</summary>
-
-```python
-wx.contact_add("acc_xxx", contact_token="...")
-```
-
-```javascript
-await wx.contact.add('acc_xxx', { contact_token: '...' })
-```
-
-</details>
-
 ### 通过好友申请
 
 ```
@@ -739,7 +683,7 @@ await wx.contact.remark('acc_xxx', '...', { remark: '老王' })
 DELETE /v1/accounts/{account_id}/contacts/{wxid}
 ```
 
-将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。如需恢复，需要重新添加好友。
+将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- | --- |

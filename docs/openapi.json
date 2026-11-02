@@ -526,79 +526,6 @@
         "x-caution": "敏感接口，调用不当容易被微信限制甚至封号。短时间内大量通过好友申请同样会触发风控。不要在收到申请后立即批量自动通过，每次通过之间要留出间隔；申请数量多时，请分散到不同时间段处理。"
       }
     },
-    "/v1/accounts/{account_id}/contacts/add": {
-      "post": {
-        "description": "【注意】敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。\n\n用搜索得到的 contact_token 发起好友申请。**这个接口响应较慢**：微信需要 5～20 秒才返回结果，实测平均 9 秒，最慢 16 秒。客户端超时时间请至少设为 30 秒。请求超时后不要直接重发，因为请求很可能已经发送成功。需要重试时，请带上 Idempotency-Key。",
-        "operationId": "contact.add",
-        "parameters": [
-          {
-            "description": "实例 ID，形如 acc_xxx",
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "description": "实例 ID，形如 acc_xxx",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "contact_token": {
-                    "description": "搜索结果中的 contact_token",
-                    "type": "string"
-                  },
-                  "greeting": {
-                    "description": "发给对方的验证消息",
-                    "example": "你好",
-                    "type": "string"
-                  },
-                  "scene": {
-                    "description": "申请来源，留空则使用默认值",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "contact_token"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            },
-            "description": "成功"
-          },
-          "4XX": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            },
-            "description": "失败，响应体中的 code 表示失败原因"
-          }
-        },
-        "summary": "添加好友",
-        "tags": [
-          "联系人"
-        ],
-        "x-caution": "敏感接口，调用不当容易被微信限制甚至封号。添加好友是微信风控最严格的操作之一。不要在短时间内连续添加，不要批量自动加人，每次添加之间要留出间隔。新注册的号、刚换设备或刚登录的号风险更高，建议先正常使用几天再添加好友。"
-      }
-    },
     "/v1/accounts/{account_id}/contacts/batch": {
       "post": {
         "description": "按 wxid 批量查询联系人资料。它和「联系人详情」调用的是微信的两个不同接口，一次查询很多人时，更适合用这个接口。\n\n对个人好友，还会返回加好友的时间和方式：added_at、added_ts 是添加时间；add_source 是微信记录的添加方式编号，add_source_text 是它的中文说明，比如「扫一扫」「群聊」「搜索手机号」「名片分享」。含义还没有确认的编号只返回 add_source，不返回中文说明。通过群聊加的好友，add_source_group 是来源群的 ID。微信没有记录的项不返回。群和公众号不返回这几个字段。\n\n所有联系人还会返回：avatar_large 高清头像（avatar 是小图）；pinyin 昵称和备注的拼音，全拼小写、首字母大写，可以用来排序和搜索；phones 是在微信备注里给这个人填写的电话号码。没有的项不返回。\n\n【建议缓存】按 wxid 保存查到的资料，收到 contact.updated 事件时再更新对应联系人的资料。不要每收到一条消息就查询一次发送人的资料。",
@@ -1044,74 +971,9 @@
         ]
       }
     },
-    "/v1/accounts/{account_id}/contacts/search": {
-      "post": {
-        "description": "按微信号或手机号搜索用户，返回可用于添加好友的 contact_token。\n\n【建议缓存】保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。",
-        "operationId": "contact.search",
-        "parameters": [
-          {
-            "description": "实例 ID，形如 acc_xxx",
-            "in": "path",
-            "name": "account_id",
-            "required": true,
-            "schema": {
-              "description": "实例 ID，形如 acc_xxx",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "keyword": {
-                    "description": "微信号或手机号",
-                    "example": "wxid_example",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "keyword"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            },
-            "description": "成功"
-          },
-          "4XX": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope"
-                }
-              }
-            },
-            "description": "失败，响应体中的 code 表示失败原因"
-          }
-        },
-        "summary": "搜索用户",
-        "tags": [
-          "联系人"
-        ],
-        "x-cache-advice": "保存搜索到的 wxid 和昵称，不要反复搜索同一个号。搜索过于频繁时，微信会提示操作过于频繁，之后一段时间内都无法搜索。contact_token 会过期，真正要添加好友时，再搜索一次获取新的 contact_token。"
-      }
-    },
     "/v1/accounts/{account_id}/contacts/{wxid}": {
       "delete": {
-        "description": "将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。如需恢复，需要重新添加好友。",
+        "description": "将联系人从通讯录中删除。对方不会收到通知，但之后无法再给你发消息。",
         "operationId": "contact.delete",
         "parameters": [
           {

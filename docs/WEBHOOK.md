@@ -63,7 +63,7 @@ boolean valid = WeLink.verifyWebhook(secret, rawBody, signature);
 | `message.received` | 收到消息 | 收到别人发来的一条消息 |
 | `message.sent` | 自己发出的消息 | 这个微信号在手机或其他设备上发出了消息，此时 self 为 true。通过本平台接口发送的消息不会推送这个事件，因为接口调用时已经同步返回了结果 |
 | `message.revoked` | 消息被撤回 | 有人撤回了一条消息，此时 type 为 revoke |
-| `friend.request` | 好友申请 | 有人申请添加好友，此时 type 为 friend_request |
+| `friend.request` | 好友申请 | 收到他人的好友申请，此时 type 为 friend_request |
 | `friend.added` | 新增好友 | 对方通过了你的好友申请，或你通过了对方的好友申请 |
 | `contact.updated` | 联系人变更 | 联系人的昵称、备注、头像等资料发生变化。只有资料确实有变化时才推送；你自己通过接口修改的资料不会推送 |
 | `contact.deleted` | 联系人删除 | 对方删除了你，或你删除了对方。事件内容只保证包含 wxid |

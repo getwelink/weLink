@@ -72,6 +72,6 @@ rows = ['# 错误码',
         '| code | HTTP | 名称 | 说明 |\n| --- | --- | --- | --- |']
 rows[-1] += '\n' + '\n'.join('| `%s` | %s | %s | %s |' % (r['code'], r['http_status'], r['name'], cell(r['message'])) for r in reference['errors'])
 rows += ['## 超时与重试',
-         'SDK 的普通请求默认超时为 30 秒，不会自动重发。发送消息、添加好友等写操作超时后，服务端可能已经处理成功；先核对结果，避免重复执行。需要幂等重试时，可在自行构造的 HTTP 请求中带上同一操作的 `Idempotency-Key`，不同操作不能共用该值。',
+         'SDK 的普通请求默认超时为 30 秒，不会自动重发。发送消息等写操作超时后，服务端可能已经处理成功；先核对结果，避免重复执行。需要幂等重试时，可在自行构造的 HTTP 请求中带上同一操作的 `Idempotency-Key`，不同操作不能共用该值。',
          'SSE 使用独立的流读取接口，生命周期由调用方管理。断开后重连并按 `event_id` 去重，需要补历史时使用事件列表。']
 (ROOT/'docs/ERRORS.md').write_text('\n\n'.join(rows)+'\n', encoding='utf-8')
