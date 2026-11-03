@@ -434,21 +434,6 @@ class WeLink:
             body={"wxids": wxids},
         )
 
-    def contact_check(self, account_id: str, *, wxids: list) -> Any:
-        """检测好友关系
-
-        检测这些人是否仍是你的好友。注意：微信对这个操作限制很严，一次检测的人数多或检测频繁，都可能导致实例被限制。一次最多检测 20 个，请按需使用。
-
-        建议缓存：保存检测结果，同一个人在短时间内不要重复检测。
-
-        POST /v1/accounts/{account_id}/contacts/check
-
-        参数：
-          wxids            必填  要检测的 wxid，一次最多 20 个
-        """
-        return self.call("POST", f"/accounts/{urllib.parse.quote(str(account_id), safe='')}/contacts/check",
-            body={"wxids": wxids},
-        )
 
     def contact_external(self, account_id: str) -> Any:
         """企微联系人

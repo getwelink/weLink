@@ -511,18 +511,7 @@ public class WeLink {
         return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/detail", null, take(args, "wxids"));
     }
 
-    /**
-     * 检测好友关系 —— 检测这些人是否仍是你的好友。注意：微信对这个操作限制很严，一次检测的人数多或检测频繁，都可能导致实例被限制。一次最多检测 20 个，请按需使用。
-     * <p>建议缓存：保存检测结果，同一个人在短时间内不要重复检测。
-     * <p>POST /v1/accounts/{account_id}/contacts/check
-     * <p>args 里可以放：
-     * <ul>
-     * <li>wxids —— 必填 要检测的 wxid，一次最多 20 个</li>
-     * </ul>
-     */
-    public Object contactCheck(String accountId, Map<String, Object> args) {
-        return call("POST", "/accounts/" + pathSegment(accountId) + "/contacts/check", null, take(args, "wxids"));
-    }
+
 
     /**
      * 企微联系人 —— 查询企业微信的外部联系人。这些联系人不在普通通讯录中，「通讯录列表」接口查不到他们。本接口返回平台已保存的数据，使用前请先调用一次「同步企微联系人」。

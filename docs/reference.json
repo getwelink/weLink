@@ -711,50 +711,6 @@
       "cache_advice": "按 wxid 保存查到的资料，收到 contact.updated 事件时再更新对应联系人的资料。不要每收到一条消息就查询一次发送人的资料。"
     },
     {
-      "id": "contact.check",
-      "group": "联系人",
-      "name": "检测好友关系",
-      "method": "POST",
-      "path": "/accounts/{account_id}/contacts/check",
-      "description": "检测这些人是否仍是你的好友。注意：微信对这个操作限制很严，一次检测的人数多或检测频繁，都可能导致实例被限制。一次最多检测 20 个，请按需使用。",
-      "params": [
-        {
-          "name": "account_id",
-          "in": "path",
-          "type": "string",
-          "required": true,
-          "example": "",
-          "description": "实例 ID，形如 acc_xxx"
-        },
-        {
-          "name": "wxids",
-          "in": "body",
-          "type": "array",
-          "required": true,
-          "example": [
-            "wxid_a"
-          ],
-          "description": "要检测的 wxid，一次最多 20 个"
-        }
-      ],
-      "example": {
-        "response": {
-          "items": [
-            {
-              "note": "正常",
-              "state": "ok",
-              "wxid": "wxid_a"
-            }
-          ]
-        }
-      },
-      "needs_account": true,
-      "tags": [
-        "read"
-      ],
-      "cache_advice": "保存检测结果，同一个人在短时间内不要重复检测。"
-    },
-    {
       "id": "contact.external",
       "group": "联系人",
       "name": "企微联系人",
