@@ -2,13 +2,13 @@
 
 <img src="assets/logo.png" width="72" alt="WeLink">
 
-# WeLink · 微信个人号 HTTP 接口
+# WeLink · 微信协议 API（iPad / Mac）
 
-**群、主动发消息、朋友圈、通讯录** —— 官方 Bot API 不做的那些，交给代码
+**微信个人号接口与多语言 SDK：消息收发、群聊管理、朋友圈、通讯录及实时事件推送。**
 
 ### 可申请试用 · 长期维护
 
-88 个接口 · 16 种事件 · Python / Node.js / Go / Java 客户端
+85 个接口 · 16 种事件 · Python / Node.js / Go / Java 客户端
 
 <sub>微信机器人 · 微信 API · 微信 SDK · 微信协议 · 微信个人号开发 · 微信自动回复 · 微信消息推送 · 微信群管理 · 朋友圈自动化</sub>
 
@@ -50,7 +50,9 @@
 
 ## 这是什么
 
-一个微信号能做的事，WeLink 把它们做成了 HTTP 接口。
+WeLink 提供基于 iPad / Mac 微信协议的 HTTP API，以及 Python、Node.js、Go、Java SDK。
+
+适用于微信个人号的消息通知、客户服务、群聊管理、朋友圈管理和 AI 应用集成。仓库提供接口文档、SDK 与接入示例；微信协议服务端不在本仓库中。
 
 扫码把号挂上来，之后你的程序就能像用任何一个 API 一样用它：发消息、读通讯录、
 建群、发朋友圈。别人发来的消息和各种变动，可通过 WebSocket 实时接收，也可推送到你配置的 Webhook 地址。
@@ -62,7 +64,7 @@ wx = WeLink(api_key="key_xxx", base_url="https://你的服务地址")
 wx.message_text("acc_xxx", to="filehelper", content="你好")
 ```
 
-**这个仓库里有什么**：四种语言的 SDK、能直接跑的示例、88 个接口的完整文档。
+**这个仓库里有什么**：四种语言的 SDK、能直接跑的示例、85 个接口的完整文档。
 
 **适合谁看**：需要机器人在**群里**干活的、需要**定时或按事件主动推送**的、
 要自动发朋友圈或批量维护通讯录的、要同时托管多个号的。
@@ -150,7 +152,7 @@ python examples/python/1_quickstart.py
 
 ## 四种语言的微信 SDK
 
-四种客户端都**只使用语言自带的库**，覆盖当前 88 个接口。支持验签、事件轮询和 SSE，具体用法见各语言 README。
+四种客户端都**只使用语言自带的库**，覆盖当前 85 个接口。支持验签、事件轮询和 SSE，具体用法见各语言 README。
 
 [接口文档](docs/API.md) · [回调字段](docs/WEBHOOK.md) · [OpenAPI 文件](docs/openapi.json) · [维护记录](CHANGELOG.md)
 
