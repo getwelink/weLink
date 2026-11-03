@@ -549,33 +549,6 @@ await wx.contact.detail('acc_xxx', { wxids: ['wxid_a'] })
 
 </details>
 
-### 检测好友关系
-
-```
-POST /v1/accounts/{account_id}/contacts/check
-```
-
-检测这些人是否仍是你的好友。注意：微信对这个操作限制很严，一次检测的人数多或检测频繁，都可能导致实例被限制。一次最多检测 20 个，请按需使用。
-
-> **建议缓存**：保存检测结果，同一个人在短时间内不要重复检测。
-
-| 参数 | 位置 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- | --- |
-| `account_id` | 路径 | string | 是 | 实例 ID，形如 acc_xxx |
-| `wxids` | 请求体 | array | 是 | 要检测的 wxid，一次最多 20 个 |
-
-<details><summary>各语言怎么调</summary>
-
-```python
-wx.contact_check("acc_xxx", wxids=["wxid_a"])
-```
-
-```javascript
-await wx.contact.check('acc_xxx', { wxids: ['wxid_a'] })
-```
-
-</details>
-
 ### 企微联系人
 
 ```
