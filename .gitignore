@@ -7,6 +7,7 @@ out/
 __pycache__/
 *.pyc
 node_modules/
+dist/
 
 # 别把自己的 Key 传上来
 .env
@@ -17,3 +18,11 @@ welink-login.png
 .venv/
 *.cursor
 *.cursor.tmp
+
+# 完整接入案例的本地状态（不提交业务 ID 或游标）
+.welink-echo/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3.lock
