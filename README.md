@@ -8,6 +8,8 @@
 
 ### 可申请试用 · 长期维护
 
+[**下载正式接入套件**](https://github.com/getwelink/weLink/releases/latest) · [**完整接入案例：WebSocket 收消息并回复**](examples/websocket-echo/README.md)
+
 85 个接口 · 16 种事件 · Python / Node.js / Go / Java 客户端
 
 <sub>微信机器人 · 微信 API · 微信 SDK · 微信协议 · 微信个人号开发 · 微信自动回复 · 微信消息推送 · 微信群管理 · 朋友圈自动化</sub>
@@ -42,6 +44,7 @@
 - [五分钟上手](#五分钟上手)
 - [四种语言的微信 SDK](#四种语言的微信-sdk)
 - [WebSocket 实时推送示例](#websocket-实时推送示例)
+- [完整接入案例](#完整接入案例)
 - [照着学的路径](#照着学的路径)
 - [一次调用长什么样](#一次调用长什么样)
 - [可申请试用与长期维护](#可申请试用与长期维护)
@@ -134,6 +137,8 @@ wx.message_text("acc_xxx", to="filehelper", content="你好")
 
 ## 五分钟上手
 
+首次接入建议从[完整案例](examples/websocket-echo/README.md)开始：包括环境安装、实例和会话配置、三个测试命令、事件去重与断线恢复。若只需要 SDK 源码或各语言最小示例，可以继续阅读下文。
+
 ```bash
 export WELINK_API_KEY=key_xxx
 export WELINK_BASE_URL=https://你的服务地址
@@ -147,6 +152,12 @@ python examples/python/1_quickstart.py
 
 想看收消息的，跑 [`2_echo_bot.py`](examples/python/2_echo_bot.py) —— 一个复读机，
 包含回调怎么收、签名怎么验、消息怎么回。
+
+---
+
+## 完整接入案例
+
+[WebSocket 收消息并回复](examples/websocket-echo/README.md)：从安装环境到实际发送 `/ping` 收到 `pong`，演示一条账号连接管理多个微信、指定会话回复、事件去重与重启恢复。附本地模拟网关测试，运行测试不需要生产密钥。
 
 ---
 

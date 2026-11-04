@@ -74,3 +74,5 @@ jobs:
         working-directory: examples/websocket/go
       - run: javac -encoding UTF-8 --release 11 -d examples/websocket/java/out sdk/java/src/welink/WeLink.java examples/websocket/java/WebSocketClient.java
       - run: node examples/websocket/test_clients.mjs
+      - run: python -m unittest discover -s tests -p test_websocket_echo.py
+      - run: node examples/websocket-echo/test_integration.mjs
